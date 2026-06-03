@@ -40,6 +40,7 @@ describe('PokemonDetail', () => {
 
     expect(meter?.getAttribute('aria-valuemax')).toBe('255');
     expect(meter?.getAttribute('aria-valuenow')).toBeTruthy();
+    expect(meter?.getAttribute('aria-label')).toBeTruthy();
   });
 
   it('localizes names when the locale changes', async () => {

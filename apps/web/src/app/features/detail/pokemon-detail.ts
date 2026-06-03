@@ -84,6 +84,7 @@ interface StatRow {
               <span
                 class="stats__bar"
                 role="meter"
+                [attr.aria-label]="messages()[stat.labelKey]"
                 [attr.aria-valuenow]="stat.base"
                 aria-valuemin="0"
                 [attr.aria-valuemax]="statMax"

@@ -153,17 +153,19 @@ export class PokemonList {
 
   private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
 
-  /** 条件で絞り込んだ全件。名前は部分一致（ja/en 双方）、タイプは AND。 */
+  /** 条件で絞り込んだ全件。名前は部分一致（ja/en 双方）、タイプは AND、世代は単一一致。 */
   protected readonly filtered = computed<readonly MockListItem[]>(() => {
     const query = this.name().trim().toLowerCase();
     const types = this.selectedTypes();
+    const generation = this.generation();
     return this.all.filter((item) => {
       const matchesName =
         query.length === 0 ||
         (item.name.ja ?? '').toLowerCase().includes(query) ||
         (item.name.en ?? '').toLowerCase().includes(query);
       const matchesTypes = types.every((t) => item.types.includes(t));
-      return matchesName && matchesTypes;
+      const matchesGeneration = generation.length === 0 || item.generation === generation;
+      return matchesName && matchesTypes && matchesGeneration;
     });
   });
 

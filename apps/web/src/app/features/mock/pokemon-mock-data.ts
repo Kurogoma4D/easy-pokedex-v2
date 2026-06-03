@@ -35,6 +35,8 @@ export interface MockListItem {
   readonly imageUrl: string | null;
   readonly name: LocalizedName;
   readonly types: readonly TypeId[];
+  /** 世代識別子（`MOCK_GENERATIONS` の `id` と一致）。 */
+  readonly generation: string;
 }
 
 /** モック種族値。BFF の `PokemonStatDetail` と同じ形。 */
@@ -86,62 +88,155 @@ export const MOCK_LIST: readonly MockListItem[] = [
     imageUrl: artwork(1),
     name: { ja: 'フシギダネ', en: 'Bulbasaur' },
     types: ['grass', 'poison'],
+    generation: 'generation-i',
   },
-  { id: 4, imageUrl: artwork(4), name: { ja: 'ヒトカゲ', en: 'Charmander' }, types: ['fire'] },
-  { id: 7, imageUrl: artwork(7), name: { ja: 'ゼニガメ', en: 'Squirtle' }, types: ['water'] },
-  { id: 25, imageUrl: artwork(25), name: { ja: 'ピカチュウ', en: 'Pikachu' }, types: ['electric'] },
+  {
+    id: 4,
+    imageUrl: artwork(4),
+    name: { ja: 'ヒトカゲ', en: 'Charmander' },
+    types: ['fire'],
+    generation: 'generation-i',
+  },
+  {
+    id: 7,
+    imageUrl: artwork(7),
+    name: { ja: 'ゼニガメ', en: 'Squirtle' },
+    types: ['water'],
+    generation: 'generation-i',
+  },
+  {
+    id: 25,
+    imageUrl: artwork(25),
+    name: { ja: 'ピカチュウ', en: 'Pikachu' },
+    types: ['electric'],
+    generation: 'generation-i',
+  },
   {
     id: 39,
     imageUrl: artwork(39),
     name: { ja: 'プリン', en: 'Jigglypuff' },
     types: ['normal', 'fairy'],
+    generation: 'generation-i',
   },
-  { id: 52, imageUrl: artwork(52), name: { ja: 'ニャース', en: 'Meowth' }, types: ['normal'] },
-  { id: 63, imageUrl: artwork(63), name: { ja: 'ケーシィ', en: 'Abra' }, types: ['psychic'] },
+  {
+    id: 52,
+    imageUrl: artwork(52),
+    name: { ja: 'ニャース', en: 'Meowth' },
+    types: ['normal'],
+    generation: 'generation-i',
+  },
+  {
+    id: 63,
+    imageUrl: artwork(63),
+    name: { ja: 'ケーシィ', en: 'Abra' },
+    types: ['psychic'],
+    generation: 'generation-i',
+  },
   {
     id: 74,
     imageUrl: artwork(74),
     name: { ja: 'イシツブテ', en: 'Geodude' },
     types: ['rock', 'ground'],
+    generation: 'generation-i',
   },
   {
     id: 92,
     imageUrl: artwork(92),
     name: { ja: 'ゴース', en: 'Gastly' },
     types: ['ghost', 'poison'],
+    generation: 'generation-i',
   },
   {
     id: 95,
     imageUrl: artwork(95),
     name: { ja: 'イワーク', en: 'Onix' },
     types: ['rock', 'ground'],
+    generation: 'generation-i',
   },
   {
     id: 123,
     imageUrl: artwork(123),
     name: { ja: 'ストライク', en: 'Scyther' },
     types: ['bug', 'flying'],
+    generation: 'generation-i',
   },
   {
     id: 130,
     imageUrl: artwork(130),
     name: { ja: 'ギャラドス', en: 'Gyarados' },
     types: ['water', 'flying'],
+    generation: 'generation-i',
   },
   {
     id: 131,
     imageUrl: artwork(131),
     name: { ja: 'ラプラス', en: 'Lapras' },
     types: ['water', 'ice'],
+    generation: 'generation-i',
   },
-  { id: 143, imageUrl: artwork(143), name: { ja: 'カビゴン', en: 'Snorlax' }, types: ['normal'] },
+  {
+    id: 143,
+    imageUrl: artwork(143),
+    name: { ja: 'カビゴン', en: 'Snorlax' },
+    types: ['normal'],
+    generation: 'generation-i',
+  },
   {
     id: 149,
     imageUrl: artwork(149),
     name: { ja: 'カイリュー', en: 'Dragonite' },
     types: ['dragon', 'flying'],
+    generation: 'generation-i',
   },
-  { id: 150, imageUrl: artwork(150), name: { ja: 'ミュウツー', en: 'Mewtwo' }, types: ['psychic'] },
+  {
+    id: 150,
+    imageUrl: artwork(150),
+    name: { ja: 'ミュウツー', en: 'Mewtwo' },
+    types: ['psychic'],
+    generation: 'generation-i',
+  },
+  {
+    id: 155,
+    imageUrl: artwork(155),
+    name: { ja: 'ヒノアラシ', en: 'Cyndaquil' },
+    types: ['fire'],
+    generation: 'generation-ii',
+  },
+  {
+    id: 158,
+    imageUrl: artwork(158),
+    name: { ja: 'ワニノコ', en: 'Totodile' },
+    types: ['water'],
+    generation: 'generation-ii',
+  },
+  {
+    id: 172,
+    imageUrl: artwork(172),
+    name: { ja: 'ピチュー', en: 'Pichu' },
+    types: ['electric'],
+    generation: 'generation-ii',
+  },
+  {
+    id: 196,
+    imageUrl: artwork(196),
+    name: { ja: 'エーフィ', en: 'Espeon' },
+    types: ['psychic'],
+    generation: 'generation-ii',
+  },
+  {
+    id: 252,
+    imageUrl: artwork(252),
+    name: { ja: 'キモリ', en: 'Treecko' },
+    types: ['grass'],
+    generation: 'generation-iii',
+  },
+  {
+    id: 255,
+    imageUrl: artwork(255),
+    name: { ja: 'アチャモ', en: 'Torchic' },
+    types: ['fire'],
+    generation: 'generation-iii',
+  },
 ];
 
 /** 詳細モック（フシギダネ）。ステータス・特性・分岐なしの 3 段進化を含む。 */

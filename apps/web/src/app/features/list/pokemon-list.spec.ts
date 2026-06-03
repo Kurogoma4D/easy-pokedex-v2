@@ -45,6 +45,22 @@ describe('PokemonList', () => {
     expect(before).toBeGreaterThan(0);
   });
 
+  it('narrows the grid when a generation is selected', async () => {
+    const fixture = TestBed.createComponent(PokemonList);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const before = el.querySelectorAll('app-pokemon-card').length;
+
+    const select = el.querySelector('select') as HTMLSelectElement;
+    select.value = 'generation-iii';
+    select.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+
+    const after = el.querySelectorAll('app-pokemon-card').length;
+    expect(after).toBeGreaterThan(0);
+    expect(after).toBeLessThan(before);
+  });
+
   it('localizes the title when the locale changes', async () => {
     const fixture = TestBed.createComponent(PokemonList);
     await fixture.whenStable();

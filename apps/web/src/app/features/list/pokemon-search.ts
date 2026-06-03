@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, model } from '@angular/core';
 import { LocaleService } from '../../i18n/locale.service';
 import { LocalizedName } from '../../i18n/localized-name';
 import { MOCK_GENERATIONS, MOCK_TYPES, TypeId } from '../mock/pokemon-mock-data';
@@ -65,9 +65,9 @@ import { typeChipStyle } from '../shared/type-style';
         </div>
       </fieldset>
 
-      @if (activeTypes().length > 0) {
+      @if (selectedTypes().length > 0) {
         <div class="search__active" aria-live="polite">
-          @for (type of activeTypes(); track type) {
+          @for (type of selectedTypes(); track type) {
             <app-type-chip [type]="type" />
           }
         </div>
@@ -170,8 +170,6 @@ export class PokemonSearch {
   readonly selectedTypes = model<readonly TypeId[]>([]);
   /** 選択中の世代識別子。空文字はすべて。 */
   readonly generation = model('');
-
-  protected readonly activeTypes = computed(() => this.selectedTypes());
 
   protected localize(name: LocalizedName): string {
     return this.localeService.localizeName(name);
