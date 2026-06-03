@@ -1,0 +1,13 @@
+pnpm-lock.yaml
+**/dist
+**/.angular
+**/out-tsc
+**/coverage
+**/node_modules
+
+# Repository docs and tooling maintained outside the formatter
+.claude
+spec.md
+README.md
+apps/web/README.md
+apps/web/.vscode
