@@ -10,12 +10,14 @@ import {
   viewChild,
 } from '@angular/core';
 import { LocaleService } from '../../i18n/locale.service';
-import { MOCK_LIST, MockListItem, TypeId } from '../mock/pokemon-mock-data';
+import { TypeId } from '../mock/pokemon-mock-data';
 import { PokemonCard } from '../shared/pokemon-card';
+import { PokemonApiService, type PokemonListPage } from './pokemon-api.service';
+import type { PokemonListItem } from './pokemon-list.model';
 import { PokemonSearch } from './pokemon-search';
 
-/** モックで一度に追加表示する件数。無限スクロールの段階読み込みを模す。 */
-const PAGE_SIZE = 8;
+/** 1 ページの取得件数。無限スクロールの 1 バッチ。BFF の MAX_LIMIT(100) 以下に収める。 */
+const PAGE_SIZE = 24;
 
 /** 文言テンプレートの `{count}` を実数で置換する。 */
 function withCount(template: string, count: number): string {
@@ -23,12 +25,14 @@ function withCount(template: string, count: number): string {
 }
 
 /**
- * 一覧画面のモックアップ（FR-1 / FR-2）。
+ * 一覧画面（FR-1）。BFF の `/pokemon/list` を `httpResource` で取得して表示する。
  *
- * 検索／フィルタ UI を上部に置き、条件で絞り込んだ結果をカードグリッドで表示する。
- * 無限スクロールは画面下端のセンチネルを IntersectionObserver で監視し、表示件数を
- * 段階的に増やすことで「スクロール到達で次が読み込まれる」見え方を再現する。
- * データは静的モック（`MOCK_LIST`）で、ライブ取得は機能 Issue（#11/#12）が担う。
+ * 無限スクロールは画面下端のセンチネルを IntersectionObserver で監視し、到達時に次ページの
+ * オフセット（レスポンスの `nextOffset`）を要求する。取得済みページはオフセットをキーに重複なく
+ * 蓄積し、グリッドに積み増す。ローディング・エラーは resource の状態をそのまま画面へ反映する。
+ *
+ * 検索／フィルタ UI（FR-2）は表示し、取得済みの結果に対する名前・タイプの絞り込みをクライアント側で
+ * 行う。BFF 検索エンドポイントへの接続は後続 Issue（#12）が担う。
  */
 @Component({
   selector: 'app-pokemon-list',
@@ -49,11 +53,18 @@ function withCount(template: string, count: number): string {
 
       <p class="list__summary" aria-live="polite">{{ resultLabel() }}</p>
 
-      @if (filtered().length === 0) {
+      @if (error()) {
+        <p class="list__error" role="alert">
+          {{ messages()['list.error'] }}
+          <button class="list__retry" type="button" (click)="retry()">
+            {{ messages()['list.retry'] }}
+          </button>
+        </p>
+      } @else if (filtered().length === 0 && !isLoading()) {
         <p class="list__empty">{{ messages()['list.empty'] }}</p>
       } @else {
         <ul class="list__grid" role="list">
-          @for (item of visible(); track item.id) {
+          @for (item of filtered(); track item.id) {
             <li>
               <app-pokemon-card [item]="item" />
             </li>
@@ -64,7 +75,7 @@ function withCount(template: string, count: number): string {
           <div #sentinel class="list__sentinel" aria-hidden="true">
             <span class="list__loading">{{ messages()['list.loadingMore'] }}</span>
           </div>
-        } @else {
+        } @else if (loaded().length > 0) {
           <p class="list__end">— {{ messages()['list.endOfList'] }} —</p>
         }
       }
@@ -114,6 +125,22 @@ function withCount(template: string, count: number): string {
       font-size: var(--font-size-display-sm);
       color: var(--color-text-muted);
     }
+    .list__error {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      margin: 0;
+      text-align: center;
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+      color: var(--color-text);
+    }
+    .list__retry {
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+    }
     .list__sentinel {
       display: flex;
       justify-content: center;
@@ -141,6 +168,7 @@ function withCount(template: string, count: number): string {
 export class PokemonList {
   private readonly localeService = inject(LocaleService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly api = inject(PokemonApiService);
 
   protected readonly messages = this.localeService.messages;
 
@@ -148,49 +176,90 @@ export class PokemonList {
   protected readonly selectedTypes = signal<readonly TypeId[]>([]);
   protected readonly generation = signal('');
 
-  private readonly all = MOCK_LIST;
-  private readonly visibleCount = signal(PAGE_SIZE);
+  /** 現在要求しているページのオフセット。これを進めると `httpResource` が再取得する。 */
+  private readonly requestedOffset = signal(0);
+  private readonly page = computed<PokemonListPage>(() => ({
+    limit: PAGE_SIZE,
+    offset: this.requestedOffset(),
+  }));
 
-  private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
+  private readonly resource = this.api.listResource(this.page);
 
-  /** 条件で絞り込んだ全件。名前は部分一致（ja/en 双方）、タイプは AND、世代は単一一致。 */
-  protected readonly filtered = computed<readonly MockListItem[]>(() => {
+  /** 取得済みの全件。オフセット順にページを積み増し、重複（同一 offset の再取得）は無視する。 */
+  private readonly loadedPages = signal<ReadonlyMap<number, readonly PokemonListItem[]>>(new Map());
+  /** 次ページのオフセット。null なら最終ページに到達済み。未取得の間は undefined。 */
+  private readonly nextOffset = signal<number | null | undefined>(undefined);
+
+  protected readonly loaded = computed<readonly PokemonListItem[]>(() => {
+    const pages = this.loadedPages();
+    return [...pages.keys()].sort((a, b) => a - b).flatMap((offset) => pages.get(offset) ?? []);
+  });
+
+  protected readonly isLoading = computed(() => this.resource.isLoading());
+  protected readonly error = computed(() => this.resource.error() !== undefined);
+  protected readonly hasMore = computed(
+    () => !this.error() && (this.nextOffset() === undefined || this.nextOffset() !== null),
+  );
+
+  /** 取得済み結果に対する名前（ja/en 部分一致）・タイプ（AND）のクライアント絞り込み。 */
+  protected readonly filtered = computed<readonly PokemonListItem[]>(() => {
     const query = this.name().trim().toLowerCase();
     const types = this.selectedTypes();
-    const generation = this.generation();
-    return this.all.filter((item) => {
+    if (query.length === 0 && types.length === 0) {
+      return this.loaded();
+    }
+    return this.loaded().filter((item) => {
       const matchesName =
         query.length === 0 ||
         (item.name.ja ?? '').toLowerCase().includes(query) ||
         (item.name.en ?? '').toLowerCase().includes(query);
       const matchesTypes = types.every((t) => item.types.includes(t));
-      const matchesGeneration = generation.length === 0 || item.generation === generation;
-      return matchesName && matchesTypes && matchesGeneration;
+      return matchesName && matchesTypes;
     });
   });
 
-  protected readonly visible = computed(() => this.filtered().slice(0, this.visibleCount()));
-  protected readonly hasMore = computed(() => this.visibleCount() < this.filtered().length);
-
   protected readonly countLabel = computed(() =>
-    withCount(this.messages()['list.count'], this.all.length),
+    withCount(this.messages()['list.count'], this.loaded().length),
   );
   protected readonly resultLabel = computed(() =>
     withCount(this.messages()['search.resultSummary'], this.filtered().length),
   );
 
+  private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
+
   constructor() {
+    // 新しいページが届くたびに、その offset をキーに結果と次オフセットを取り込む。
+    // エラー時は `value()` が例外を投げるため、値が無い状態（エラー・ローディング）は読み飛ばす。
+    effect(() => {
+      if (this.resource.error() !== undefined || !this.resource.hasValue()) {
+        return;
+      }
+      const response = this.resource.value();
+      if (response === undefined) {
+        return;
+      }
+      this.loadedPages.update((pages) => {
+        if (pages.has(response.offset)) {
+          return pages;
+        }
+        const next = new Map(pages);
+        next.set(response.offset, response.results);
+        return next;
+      });
+      this.nextOffset.set(response.nextOffset);
+    });
+
     if (typeof IntersectionObserver === 'undefined') {
       return;
     }
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting) && this.hasMore()) {
-        this.visibleCount.update((count) => count + PAGE_SIZE);
+      if (entries.some((entry) => entry.isIntersecting)) {
+        this.loadNext();
       }
     });
     this.destroyRef.onDestroy(() => observer.disconnect());
 
-    // センチネルは @if / 絞り込みで差し替わるため、現在の要素を監視し直す。
+    // センチネルは @if で差し替わるため、現在の要素を監視し直す。
     effect(() => {
       observer.disconnect();
       const el = this.sentinel()?.nativeElement;
@@ -198,5 +267,22 @@ export class PokemonList {
         observer.observe(el);
       }
     });
+  }
+
+  /** 次ページのオフセットを要求する。取得中・最終ページ・エラー時は何もしない。 */
+  private loadNext(): void {
+    if (this.isLoading() || this.error()) {
+      return;
+    }
+    const next = this.nextOffset();
+    if (next === null || next === undefined) {
+      return;
+    }
+    this.requestedOffset.set(next);
+  }
+
+  /** エラー後にもう一度同じページを取得し直す。 */
+  protected retry(): void {
+    this.resource.reload();
   }
 }

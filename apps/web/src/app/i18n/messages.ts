@@ -19,6 +19,8 @@ const ja = {
   'list.empty': 'じょうけんに あう ポケモンが いません。',
   'list.loadingMore': 'よみこみちゅう…',
   'list.endOfList': 'ここまで',
+  'list.error': 'ポケモンの よみこみに しっぱいしました。',
+  'list.retry': 'もういちど',
 
   // 検索／フィルタ（モックアップ）
   'search.title': 'けんさく',
@@ -70,6 +72,8 @@ const en: MessageDictionary = {
   'list.empty': 'No Pokémon match these filters.',
   'list.loadingMore': 'Loading more…',
   'list.endOfList': 'End of list',
+  'list.error': 'Failed to load Pokémon.',
+  'list.retry': 'Retry',
 
   // Search / filter (mockup)
   'search.title': 'SEARCH',
