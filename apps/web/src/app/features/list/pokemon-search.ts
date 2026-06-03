@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, model } from '@angular/core';
 import { LocaleService } from '../../i18n/locale.service';
 import { LocalizedName } from '../../i18n/localized-name';
+import { Icon } from '../../shared/icon/icon';
 import { MOCK_GENERATIONS, MOCK_TYPES, TypeId } from '../mock/pokemon-mock-data';
 import { TypeChip } from '../shared/type-chip';
 import { typeChipStyle } from '../shared/type-style';
@@ -13,19 +14,22 @@ import { typeChipStyle } from '../shared/type-style';
 @Component({
   selector: 'app-pokemon-search',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TypeChip],
+  imports: [TypeChip, Icon],
   template: `
     <form class="search" (submit)="$event.preventDefault()">
       <div class="search__row">
         <label class="search__field">
           <span class="search__label">{{ messages()['search.nameLabel'] }}</span>
-          <input
-            class="search__input"
-            type="search"
-            [value]="name()"
-            (input)="onNameInput($event)"
-            [placeholder]="messages()['search.namePlaceholder']"
-          />
+          <span class="search__input-wrap">
+            <app-icon name="search" class="search__input-icon" />
+            <input
+              class="search__input search__input--name"
+              type="search"
+              [value]="name()"
+              (input)="onNameInput($event)"
+              [placeholder]="messages()['search.namePlaceholder']"
+            />
+          </span>
         </label>
 
         <label class="search__field">
@@ -43,12 +47,16 @@ import { typeChipStyle } from '../shared/type-style';
         </label>
 
         <button class="search__reset" type="button" (click)="reset()">
+          <app-icon name="close" />
           {{ messages()['search.reset'] }}
         </button>
       </div>
 
       <fieldset class="search__types">
-        <legend class="search__label">{{ messages()['search.typeLabel'] }}</legend>
+        <legend class="search__label search__label--icon">
+          <app-icon name="filter" />
+          {{ messages()['search.typeLabel'] }}
+        </legend>
         <div class="search__type-grid">
           @for (type of types; track type.id) {
             <button
@@ -103,6 +111,11 @@ import { typeChipStyle } from '../shared/type-style';
       letter-spacing: var(--letter-spacing-display);
       color: var(--color-text);
     }
+    .search__label--icon {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
     .search__input {
       font-family: var(--font-body);
       font-size: var(--font-size-body-sm);
@@ -113,8 +126,29 @@ import { typeChipStyle } from '../shared/type-style';
       padding: var(--space-2);
       box-shadow: var(--shadow-screen-inset);
     }
+    /* The name field reserves room on the left for the inline magnifier. */
+    .search__input-wrap {
+      position: relative;
+      display: flex;
+    }
+    .search__input--name {
+      flex: 1;
+      padding-left: calc(var(--space-3) + var(--space-3));
+    }
+    .search__input-icon {
+      position: absolute;
+      left: var(--space-2);
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: var(--font-size-body-sm);
+      color: var(--color-text-muted);
+      pointer-events: none;
+    }
     .search__reset {
       flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
     }
     .search__types {
       margin: 0;

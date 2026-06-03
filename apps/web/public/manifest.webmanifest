@@ -1,0 +1,28 @@
+{
+  "name": "Easy Pokédex",
+  "short_name": "Pokédex",
+  "description": "A retro handheld Pokédex.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#cfe8b0",
+  "theme_color": "#1b2e1a",
+  "icons": [
+    {
+      "src": "icons/app-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

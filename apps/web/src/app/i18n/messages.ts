@@ -11,6 +11,7 @@ const ja = {
   'locale.label': '言語',
   'locale.ja': '日本語',
   'locale.en': 'English',
+  'a11y.localeSwitch': '言語の切り替え',
 
   // 一覧画面（モックアップ）
   'list.title': 'ずかん',
@@ -61,6 +62,7 @@ const en: MessageDictionary = {
   'locale.label': 'Language',
   'locale.ja': '日本語',
   'locale.en': 'English',
+  'a11y.localeSwitch': 'Switch language',
 
   // List screen (mockup)
   'list.title': 'POKÉDEX',
