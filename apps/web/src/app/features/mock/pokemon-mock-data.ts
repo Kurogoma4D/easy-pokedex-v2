@@ -39,43 +39,6 @@ export interface MockListItem {
   readonly generation: string;
 }
 
-/** モック種族値。BFF の `PokemonStatDetail` と同じ形。 */
-export interface MockStat {
-  readonly id: 'hp' | 'attack' | 'defense' | 'special-attack' | 'special-defense' | 'speed';
-  readonly base: number;
-}
-
-/** モック特性。BFF の `PokemonAbilityDetail` と同じ形。 */
-export interface MockAbility {
-  readonly id: string;
-  readonly name: LocalizedName;
-  readonly isHidden: boolean;
-}
-
-/** モック進化ノード。BFF の `EvolutionNode` と同じ形（分岐に備えてツリー）。 */
-export interface MockEvolutionNode {
-  readonly id: number;
-  readonly name: LocalizedName;
-  readonly imageUrl: string | null;
-  readonly evolvesTo: readonly MockEvolutionNode[];
-}
-
-/** モック詳細。BFF の `PokemonDetail` と同じ形。 */
-export interface MockDetail {
-  readonly id: number;
-  readonly name: LocalizedName;
-  readonly imageUrl: string | null;
-  /** 身長（デシメートル単位の上流値そのまま）。 */
-  readonly height: number;
-  /** 体重（ヘクトグラム単位の上流値そのまま）。 */
-  readonly weight: number;
-  readonly types: readonly TypeId[];
-  readonly stats: readonly MockStat[];
-  readonly abilities: readonly MockAbility[];
-  readonly flavorText: LocalizedName;
-  readonly evolutionChain: MockEvolutionNode;
-}
-
 /** 公式アートワークの URL を図鑑番号から組み立てる（PokeAPI のスプライト配置に合わせる）。 */
 function artwork(id: number): string {
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
@@ -238,52 +201,6 @@ export const MOCK_LIST: readonly MockListItem[] = [
     generation: 'generation-iii',
   },
 ];
-
-/** 詳細モック（フシギダネ）。ステータス・特性・分岐なしの 3 段進化を含む。 */
-export const MOCK_DETAIL: MockDetail = {
-  id: 1,
-  name: { ja: 'フシギダネ', en: 'Bulbasaur' },
-  imageUrl: artwork(1),
-  height: 7,
-  weight: 69,
-  types: ['grass', 'poison'],
-  stats: [
-    { id: 'hp', base: 45 },
-    { id: 'attack', base: 49 },
-    { id: 'defense', base: 49 },
-    { id: 'special-attack', base: 65 },
-    { id: 'special-defense', base: 65 },
-    { id: 'speed', base: 45 },
-  ],
-  abilities: [
-    { id: 'overgrow', name: { ja: 'しんりょく', en: 'Overgrow' }, isHidden: false },
-    { id: 'chlorophyll', name: { ja: 'ようりょくそ', en: 'Chlorophyll' }, isHidden: true },
-  ],
-  flavorText: {
-    ja: 'うまれたときから せなかに しょくぶつの タネが あって すこしずつ おおきく そだつ。',
-    en: 'A strange seed was planted on its back at birth. The plant sprouts and grows with this Pokémon.',
-  },
-  evolutionChain: {
-    id: 1,
-    name: { ja: 'フシギダネ', en: 'Bulbasaur' },
-    imageUrl: artwork(1),
-    evolvesTo: [
-      {
-        id: 2,
-        name: { ja: 'フシギソウ', en: 'Ivysaur' },
-        imageUrl: artwork(2),
-        evolvesTo: [
-          {
-            id: 3,
-            name: { ja: 'フシギバナ', en: 'Venusaur' },
-            imageUrl: artwork(3),
-            evolvesTo: [],
-          },
-        ],
-      },
-    ],
-  },
-};
 
 /** タイプフィルタの候補。識別子と ja/en 表示名。 */
 export const MOCK_TYPES: readonly { readonly id: TypeId; readonly name: LocalizedName }[] = [
