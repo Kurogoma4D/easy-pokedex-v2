@@ -13,8 +13,12 @@ export class LocaleService {
   /** 選択可能なロケール一覧。 */
   readonly availableLocales = LOCALES;
 
-  /** 現在ロケールの UI 文言辞書。 */
-  private readonly messages = computed(() => MESSAGES[this._locale()]);
+  /**
+   * 現在ロケールの UI 文言辞書。
+   * テンプレートは `messages()['nav.list']` の形で signal を直接参照し、
+   * ロケール signal の変更に追従して再評価される。
+   */
+  readonly messages = computed(() => MESSAGES[this._locale()]);
 
   constructor() {
     // ロケール変更を localStorage と <html lang> に反映する。

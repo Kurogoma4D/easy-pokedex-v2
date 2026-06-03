@@ -5,4 +5,3 @@ export { resolveLocalizedName } from './localized-name';
 export type { LocalizedName } from './localized-name';
 export { MESSAGES } from './messages';
 export type { MessageDictionary, MessageKey } from './messages';
-export { TranslatePipe } from './translate.pipe';

@@ -1,14 +1,15 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { TranslatePipe } from '../../i18n/translate.pipe';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { LocaleService } from '../../i18n/locale.service';
 
 @Component({
   selector: 'app-pokemon-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe],
   template: `
     <section>
-      <p>{{ 'list.placeholder' | t }}</p>
+      <p>{{ messages()['list.placeholder'] }}</p>
     </section>
   `,
 })
-export class PokemonList {}
+export class PokemonList {
+  protected readonly messages = inject(LocaleService).messages;
+}

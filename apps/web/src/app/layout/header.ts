@@ -2,28 +2,34 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { Locale } from '../i18n/locale';
 import { LocaleService } from '../i18n/locale.service';
-import { TranslatePipe } from '../i18n/translate.pipe';
+import { MessageKey } from '../i18n/messages';
+
+/** ロケール切り替えボタンに使う、ロケールとその表示文言キーの対応。 */
+const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
+  ja: 'locale.ja',
+  en: 'locale.en',
+};
 
 @Component({
   selector: 'app-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive, TranslatePipe],
+  imports: [RouterLink, RouterLinkActive],
   template: `
     <header class="app-header">
-      <a class="app-header__title" routerLink="/">{{ 'app.title' | t }}</a>
+      <a class="app-header__title" routerLink="/">{{ messages()['app.title'] }}</a>
       <nav class="app-header__nav">
-        <a routerLink="/list" routerLinkActive="is-active">{{ 'nav.list' | t }}</a>
+        <a routerLink="/list" routerLinkActive="is-active">{{ messages()['nav.list'] }}</a>
       </nav>
       <div class="app-header__locale">
-        <span>{{ 'locale.label' | t }}</span>
-        @for (locale of locales; track locale) {
+        <span>{{ messages()['locale.label'] }}</span>
+        @for (option of localeOptions; track option.locale) {
           <button
             type="button"
-            [class.is-active]="locale === currentLocale()"
-            [attr.aria-pressed]="locale === currentLocale()"
-            (click)="selectLocale(locale)"
+            [class.is-active]="option.locale === currentLocale()"
+            [attr.aria-pressed]="option.locale === currentLocale()"
+            (click)="selectLocale(option.locale)"
           >
-            {{ localeLabel(locale) | t }}
+            {{ messages()[option.labelKey] }}
           </button>
         }
       </div>
@@ -60,14 +66,14 @@ import { TranslatePipe } from '../i18n/translate.pipe';
 export class Header {
   private readonly localeService = inject(LocaleService);
 
+  protected readonly messages = this.localeService.messages;
   protected readonly currentLocale = this.localeService.locale;
-  protected readonly locales = this.localeService.availableLocales;
+  protected readonly localeOptions = this.localeService.availableLocales.map((locale) => ({
+    locale,
+    labelKey: LOCALE_LABEL_KEYS[locale],
+  }));
 
   protected selectLocale(locale: Locale): void {
     this.localeService.setLocale(locale);
-  }
-
-  protected localeLabel(locale: Locale): 'locale.ja' | 'locale.en' {
-    return locale === 'ja' ? 'locale.ja' : 'locale.en';
   }
 }
