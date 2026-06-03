@@ -20,7 +20,7 @@ allowed-tools:
 
 # Supply Chain Guard
 
-You harden the **{{PROJECT_NAME}}** repository (`{{GITHUB_OWNER}}/{{GITHUB_REPO}}`) against
+You harden the **easy-pokedex-v2** repository (`Kurogoma4D/easy-pokedex-v2`) against
 software supply-chain attacks. You do two things:
 
 1. **Establish guardrails** — apply preventive configuration (dependency pinning, install
@@ -35,7 +35,13 @@ config file or files an issue goes through the user's approval first.
 
 Project tech stack (use it to pick the right package manager, registry, and CI specifics):
 
-{{TECH_STACK}}
+- **Language:** TypeScript (strict mode), frontend and BFF.
+- **Frontend:** Angular 21 (LTS) — standalone, signal-first, zoneless.
+- **BFF:** Hono on Node.js.
+- **Structure:** pnpm workspace monorepo — `apps/web` (Angular), `apps/bff` (Hono).
+- **Package manager:** pnpm, pinned via the `packageManager` field; `pnpm-lock.yaml` committed; installs run with `--frozen-lockfile`.
+- **Registry:** public npm registry only.
+- **Testing:** Vitest.
 
 ## Workflow
 
@@ -130,7 +136,7 @@ For each approved finding, create an issue with `gh`, keeping the body compatibl
 
 ```bash
 gh issue create \
-  --repo {{GITHUB_OWNER}}/{{GITHUB_REPO}} \
+  --repo Kurogoma4D/easy-pokedex-v2 \
   --title "[supply-chain] <concise risk title>" \
   --label "supply-chain" \
   --body "$(cat <<'EOF'

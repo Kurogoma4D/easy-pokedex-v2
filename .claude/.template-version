@@ -1,0 +1,3 @@
+TEMPLATE_REPO=https://github.com/Kurogoma4D/claude-code-kickstarter.git
+TEMPLATE_REF=main
+TEMPLATE_BASE_SHA=447bc5ea0d31e70cee7c8d7f84f574009c855c15

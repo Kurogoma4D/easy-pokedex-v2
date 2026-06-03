@@ -13,9 +13,9 @@ allowed-tools:
 
 # Issue Worker
 
-You process **one** GitHub issue for the **{{PROJECT_NAME}}** repository
-(`{{GITHUB_OWNER}}/{{GITHUB_REPO}}`) end to end, then stop.
-{{PROJECT_SHORT_DESCRIPTION}}
+You process **one** GitHub issue for the **easy-pokedex-v2** repository
+(`Kurogoma4D/easy-pokedex-v2`) end to end, then stop.
+a Pokédex web app (Angular + Hono BFF)
 
 Unlike `/auto-issue-worker`, you do **not** loop over issues, you run the review **once**
 (one review pass plus at most one round of fixes), and you **leave the PR open** — you never
@@ -27,7 +27,7 @@ merge.
 - If no number is given, pick the oldest open issue as a fallback:
 
 ```bash
-gh issue list --repo {{GITHUB_OWNER}}/{{GITHUB_REPO}} --state open --limit 1 -S "sort:created-asc" --json number,title,labels
+gh issue list --repo Kurogoma4D/easy-pokedex-v2 --state open --limit 1 -S "sort:created-asc" --json number,title,labels
 ```
 
 - If no number is given and there are no open issues, report "No open issues to work on" and stop.
@@ -37,7 +37,7 @@ gh issue list --repo {{GITHUB_OWNER}}/{{GITHUB_REPO}} --state open --limit 1 -S 
 ### Step 1 — Resolve the issue
 
 ```bash
-gh issue view <number> --repo {{GITHUB_OWNER}}/{{GITHUB_REPO}} --json number,title,labels,body
+gh issue view <number> --repo Kurogoma4D/easy-pokedex-v2 --json number,title,labels,body
 ```
 
 - Confirm the issue exists and is open. If it is closed, ask the user whether to proceed.
@@ -52,7 +52,7 @@ Delegate implementation to the **github-issue-implementer** agent:
 ```
 Task tool:
   subagent_type: github-issue-implementer
-  prompt: "Implement issue #<number> for the {{PROJECT_NAME}} repository ({{GITHUB_OWNER}}/{{GITHUB_REPO}})."
+  prompt: "Implement issue #<number> for the easy-pokedex-v2 repository (Kurogoma4D/easy-pokedex-v2)."
 ```
 
 - The agent creates a worktree, implements the change, runs quality checks, and opens a PR.
@@ -67,7 +67,7 @@ Task tool:
   subagent_type: general-purpose
   prompt: |
     You are a code reviewer. Follow the instructions in .claude/agents/code-reviewer.md.
-    Review PR #<pr-number> in the {{GITHUB_OWNER}}/{{GITHUB_REPO}} repository.
+    Review PR #<pr-number> in the Kurogoma4D/easy-pokedex-v2 repository.
     Return a list of issues found, or "LGTM" if the code is acceptable.
 ```
 
