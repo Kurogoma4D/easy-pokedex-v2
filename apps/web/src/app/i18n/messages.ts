@@ -29,6 +29,7 @@ const ja = {
   'search.typeLabel': 'タイプ',
   'search.generationLabel': 'せだい',
   'search.generationAll': 'すべて',
+  'search.generationDisabled': 'じゅんびちゅう',
   'search.reset': 'リセット',
   'search.resultSummary': '{count}けん ヒット',
 
@@ -82,6 +83,7 @@ const en: MessageDictionary = {
   'search.typeLabel': 'Type',
   'search.generationLabel': 'Generation',
   'search.generationAll': 'All',
+  'search.generationDisabled': 'Coming soon',
   'search.reset': 'Reset',
   'search.resultSummary': '{count} results',
 

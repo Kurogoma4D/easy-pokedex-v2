@@ -29,10 +29,14 @@ function withCount(template: string, count: number): string {
  *
  * 無限スクロールは画面下端のセンチネルを IntersectionObserver で監視し、到達時に次ページの
  * オフセット（レスポンスの `nextOffset`）を要求する。取得済みページはオフセットをキーに重複なく
- * 蓄積し、グリッドに積み増す。ローディング・エラーは resource の状態をそのまま画面へ反映する。
+ * 蓄積し、グリッドに積み増す。
+ *
+ * エラー表示は取得状況で出し分ける。初回ロードの失敗（取得済みカードなし）は画面全体のエラーへ、
+ * ページ送り中の失敗（取得済みカードあり）はグリッドを残したままセンチネル位置のインラインエラーへ
+ * 反映する。どちらも再取得は失敗したオフセットに対して行う。
  *
  * 検索／フィルタ UI（FR-2）は表示し、取得済みの結果に対する名前・タイプの絞り込みをクライアント側で
- * 行う。BFF 検索エンドポイントへの接続は後続 Issue（#12）が担う。
+ * 行う。世代フィルタおよび BFF 検索エンドポイントへの接続は後続 Issue（#13）が担う。
  */
 @Component({
   selector: 'app-pokemon-list',
@@ -53,7 +57,7 @@ function withCount(template: string, count: number): string {
 
       <p class="list__summary" aria-live="polite">{{ resultLabel() }}</p>
 
-      @if (error()) {
+      @if (initialError()) {
         <p class="list__error" role="alert">
           {{ messages()['list.error'] }}
           <button class="list__retry" type="button" (click)="retry()">
@@ -71,7 +75,14 @@ function withCount(template: string, count: number): string {
           }
         </ul>
 
-        @if (hasMore()) {
+        @if (pagingError()) {
+          <p class="list__paging-error" role="alert">
+            {{ messages()['list.error'] }}
+            <button class="list__retry" type="button" (click)="retry()">
+              {{ messages()['list.retry'] }}
+            </button>
+          </p>
+        } @else if (hasMore()) {
           <div #sentinel class="list__sentinel" aria-hidden="true">
             <span class="list__loading">{{ messages()['list.loadingMore'] }}</span>
           </div>
@@ -141,6 +152,21 @@ function withCount(template: string, count: number): string {
       font-family: var(--font-display);
       font-size: var(--font-size-display-sm);
     }
+    /* Mid-scroll paging failure: sits below the already-loaded grid instead of
+     * replacing it, so loaded cards stay visible while retry re-fetches. */
+    .list__paging-error {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      margin: 0;
+      padding: var(--space-3);
+      text-align: center;
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+      color: var(--color-text);
+    }
     .list__sentinel {
       display: flex;
       justify-content: center;
@@ -197,6 +223,10 @@ export class PokemonList {
 
   protected readonly isLoading = computed(() => this.resource.isLoading());
   protected readonly error = computed(() => this.resource.error() !== undefined);
+  /** 初回ロードの失敗（取得済みカードが無い）。画面全体のエラー表示に使う。 */
+  protected readonly initialError = computed(() => this.error() && this.loaded().length === 0);
+  /** ページ送り中の失敗（取得済みカードがある）。センチネル付近のインライン表示に使う。 */
+  protected readonly pagingError = computed(() => this.error() && this.loaded().length > 0);
   protected readonly hasMore = computed(
     () => !this.error() && (this.nextOffset() === undefined || this.nextOffset() !== null),
   );

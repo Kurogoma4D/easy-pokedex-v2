@@ -218,6 +218,31 @@ describe('PokemonList', () => {
     expect(el.querySelectorAll('app-pokemon-card').length).toBe(1);
   });
 
+  it('keeps loaded cards and shows an inline retry when a paging request fails', async () => {
+    const fixture = TestBed.createComponent(PokemonList);
+    await flushPage(fixture, 0, 24, [item(1, { ja: 'フシギダネ', en: 'Bulbasaur' }, ['grass'])]);
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('app-pokemon-card').length).toBe(1);
+
+    // ページ 2 を要求してから上流エラーを返す。
+    FakeIntersectionObserver.active()?.triggerIntersection();
+    await flushError(fixture, 24);
+
+    // 既読カードは残り、全画面エラーは出さず、インラインの再試行を出す。
+    expect(el.querySelectorAll('app-pokemon-card').length).toBe(1);
+    expect(el.querySelector('.list__error')).toBeFalsy();
+    expect(el.querySelector('.list__paging-error')).toBeTruthy();
+
+    // 再試行は失敗したオフセット（24）を取り直す。
+    const retry = el.querySelector('.list__paging-error .list__retry') as HTMLButtonElement;
+    retry.click();
+    await flushPage(fixture, 24, null, [item(4, { ja: 'ヒトカゲ', en: 'Charmander' }, ['fire'])]);
+
+    expect(el.querySelector('.list__paging-error')).toBeFalsy();
+    expect(el.querySelectorAll('app-pokemon-card').length).toBe(2);
+  });
+
   it('localizes the title and names when the locale changes', async () => {
     const fixture = TestBed.createComponent(PokemonList);
     await flushPage(fixture, 0, null, [item(1, { ja: 'フシギダネ', en: 'Bulbasaur' }, ['grass'])]);
