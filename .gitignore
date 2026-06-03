@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+out-tsc/
+**/.angular/
+
+# test / coverage
+coverage/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / OS
+.DS_Store
+.idea/
+*.swp
+
+# env
+.env
+.env.*
+!.env.example
