@@ -22,16 +22,18 @@ const ja = {
   'list.error': 'ポケモンの よみこみに しっぱいしました。',
   'list.retry': 'もういちど',
 
-  // 検索／フィルタ（モックアップ）
+  // 検索／フィルタ
   'search.title': 'けんさく',
   'search.nameLabel': 'なまえ',
   'search.namePlaceholder': 'なまえで さがす',
   'search.typeLabel': 'タイプ',
+  'search.typeLimit': 'タイプは{count}つまで',
   'search.generationLabel': 'せだい',
   'search.generationAll': 'すべて',
-  'search.generationDisabled': 'じゅんびちゅう',
   'search.reset': 'リセット',
   'search.resultSummary': '{count}けん ヒット',
+  'search.searching': 'けんさくちゅう…',
+  'search.error': 'けんさくに しっぱいしました。',
 
   // 詳細画面（モックアップ）
   'detail.height': 'たかさ',
@@ -79,16 +81,18 @@ const en: MessageDictionary = {
   'list.error': 'Failed to load Pokémon.',
   'list.retry': 'Retry',
 
-  // Search / filter (mockup)
+  // Search / filter
   'search.title': 'SEARCH',
   'search.nameLabel': 'Name',
   'search.namePlaceholder': 'Search by name',
   'search.typeLabel': 'Type',
+  'search.typeLimit': 'Up to {count} types',
   'search.generationLabel': 'Generation',
   'search.generationAll': 'All',
-  'search.generationDisabled': 'Coming soon',
   'search.reset': 'Reset',
   'search.resultSummary': '{count} results',
+  'search.searching': 'Searching…',
+  'search.error': 'Search failed.',
 
   // Detail screen (mockup)
   'detail.height': 'Height',
