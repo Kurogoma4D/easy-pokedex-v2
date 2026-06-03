@@ -90,6 +90,45 @@ export interface PokeApiEvolutionChainLink {
   readonly evolves_to: readonly PokeApiEvolutionChainLink[];
 }
 
+/**
+ * BFF が整形して返す一覧 DTO（FR-1 / FR-5）。フロントエンドと共有するため、
+ * 上流の生レスポンス（`PokeApi*`）とは別に「画面が必要とする形」だけを表す。
+ */
+
+/** 対応ロケール。フロントエンドの i18n と同じ集合を保つ。 */
+export type PokedexLocale = 'ja' | 'en';
+
+/** ロケール別の表示名。上流に該当ロケール名が無い場合は英語名へフォールバックする。 */
+export interface LocalizedName {
+  readonly ja: string;
+  readonly en: string;
+}
+
+/** 一覧 1 要素。図鑑番号・スプライト・多言語名・タイプを持つ（FR-1）。 */
+export interface PokemonListItem {
+  /** 図鑑番号（= PokeAPI の id）。 */
+  readonly id: number;
+  /** スプライト画像 URL。上流に画像が無い場合は null。 */
+  readonly imageUrl: string | null;
+  /** ja/en 両方の表示名。 */
+  readonly name: LocalizedName;
+  /** タイプ名（slot 昇順、英語のタイプ識別子）。 */
+  readonly types: readonly string[];
+}
+
+/** 一覧エンドポイントのレスポンス。無限スクロール用にカーソル情報を含む。 */
+export interface PokemonListResponse {
+  /** 上流の総件数。 */
+  readonly count: number;
+  /** 今回返した範囲の先頭オフセット。 */
+  readonly offset: number;
+  /** 今回返した範囲の要求件数。 */
+  readonly limit: number;
+  /** 次ページの offset。これ以上無い場合は null。 */
+  readonly nextOffset: number | null;
+  readonly results: readonly PokemonListItem[];
+}
+
 /** `/evolution-chain/{id}` のレスポンス。 */
 export interface PokeApiEvolutionChain {
   readonly id: number;
