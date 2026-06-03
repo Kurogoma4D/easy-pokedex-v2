@@ -215,39 +215,48 @@ interface StatRow {
         animation: none;
       }
     }
+    .detail__head,
+    .detail__panel {
+      background-color: var(--color-surface-raised);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-panel);
+      box-shadow: var(--shadow-dot-sm);
+    }
     .detail__head {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: var(--space-2);
       padding: var(--space-4);
-      background-color: var(--color-surface-raised);
-      border: var(--border-width-chunky) solid var(--color-border);
-      border-radius: var(--radius-panel);
-      box-shadow: var(--shadow-dot-sm);
     }
     .detail__dex {
       align-self: flex-start;
       font-size: var(--font-size-display-md);
       color: var(--color-text-muted);
     }
-    .detail__art {
+    .detail__art,
+    .evo__art {
       display: flex;
       align-items: center;
       justify-content: center;
+      background-color: var(--color-screen);
+      border: var(--border-width-chunky) solid var(--color-border);
+      box-shadow: var(--shadow-screen-inset);
+    }
+    .detail__art {
       width: 12rem;
       max-width: 60vw;
       aspect-ratio: 1 / 1;
-      background-color: var(--color-screen);
-      border: var(--border-width-chunky) solid var(--color-border);
       border-radius: var(--radius-screen);
-      box-shadow: var(--shadow-screen-inset);
+    }
+    .detail__art img,
+    .evo__art img {
+      object-fit: contain;
+      image-rendering: pixelated;
     }
     .detail__art img {
       width: 84%;
       height: 84%;
-      object-fit: contain;
-      image-rendering: pixelated;
     }
     .detail__art-fallback {
       font-family: var(--font-display);
@@ -279,23 +288,23 @@ interface StatRow {
     }
     .detail__panel {
       padding: var(--space-3);
-      background-color: var(--color-surface-raised);
-      border: var(--border-width-chunky) solid var(--color-border);
-      border-radius: var(--radius-panel);
-      box-shadow: var(--shadow-dot-sm);
     }
     .detail__heading {
       margin: 0 0 var(--space-3);
       font-size: var(--font-size-display-md);
     }
 
-    .stats {
+    .stats,
+    .abilities,
+    .evo {
       display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
       margin: 0;
       padding: 0;
       list-style: none;
+    }
+    .stats {
+      flex-direction: column;
+      gap: var(--space-2);
     }
     .stats__row {
       display: grid;
@@ -331,12 +340,8 @@ interface StatRow {
     }
 
     .abilities {
-      display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin: 0;
-      padding: 0;
-      list-style: none;
     }
     .abilities__item {
       display: flex;
@@ -355,13 +360,9 @@ interface StatRow {
     }
 
     .evo {
-      display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: var(--space-3);
-      margin: 0;
-      padding: 0;
-      list-style: none;
     }
     .evo__node {
       display: flex;
@@ -377,21 +378,14 @@ interface StatRow {
       color: var(--color-text);
     }
     .evo__art {
-      display: flex;
-      align-items: center;
-      justify-content: center;
       width: 5rem;
       height: 5rem;
-      background-color: var(--color-screen);
-      border: var(--border-width-chunky) solid var(--color-border-soft);
+      border-color: var(--color-border-soft);
       border-radius: var(--radius-chip);
-      box-shadow: var(--shadow-screen-inset);
     }
     .evo__art img {
       width: 80%;
       height: 80%;
-      object-fit: contain;
-      image-rendering: pixelated;
     }
     .evo__arrow {
       color: var(--color-text-muted);
