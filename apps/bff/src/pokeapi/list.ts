@@ -74,6 +74,38 @@ export interface FetchPokemonListParams {
 }
 
 /**
+ * 個別取得の同時実行数の既定値。一覧 1 ページの cold 取得で上流へ一斉にファンアウトすると
+ * PokeAPI のレート制限に触れて連鎖失敗を招くため、ワーカープールでバウンドする。
+ */
+const DEFAULT_DETAIL_CONCURRENCY = 6;
+
+/**
+ * `items` を最大 `concurrency` 並列で `mapper` に通し、結果を入力順で返す。
+ * 固定数のワーカーが共有インデックスから次の要素を取り続けるプール方式で、
+ * 同時に走る `mapper` 呼び出しが `concurrency` を超えないことを保証する。
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      results[current] = await mapper(items[current]!, current);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+/**
  * 無限スクロール用の一覧を整形して返す（FR-1）。
  *
  * `/pokemon` の一覧（name+url のみ）を起点に、各要素のタイプ・スプライトを `/pokemon/{id}`、
@@ -84,19 +116,36 @@ export async function fetchPokemonList(
   client: PokeApiClient,
   params: FetchPokemonListParams,
   options?: RequestOptions,
+  detailConcurrency: number = DEFAULT_DETAIL_CONCURRENCY,
 ): Promise<PokemonListResponse> {
   const list = await client.fetchPokemonList(params, options);
 
-  const results = await Promise.all(
-    list.results.map(async (resource): Promise<PokemonListItem> => {
-      const id = extractIdFromResourceUrl(resource.url);
-      const [pokemon, species] = await Promise.all([
-        client.fetchPokemon(id, options),
-        client.fetchPokemonSpecies(id, options),
-      ]);
-      return toListItem(pokemon, species);
-    }),
-  );
+  const ids = list.results.map((resource) => extractIdFromResourceUrl(resource.url));
+
+  // 上流への個別リクエスト 1 本を 1 タスクとして同一プールで処理し、同時実行数を厳密に
+  // detailConcurrency 以下へ抑える。`pokemon` と `species` を別タスクに分けるのは、
+  // 1 匹あたり 2 本のリクエストがプールの上限を超えてファンアウトしないようにするため。
+  type DetailTask =
+    | { readonly kind: 'pokemon'; readonly index: number; readonly id: number }
+    | { readonly kind: 'species'; readonly index: number; readonly id: number };
+
+  const tasks: DetailTask[] = ids.flatMap((id, index) => [
+    { kind: 'pokemon', index, id },
+    { kind: 'species', index, id },
+  ]);
+
+  const pokemons = new Array<PokeApiPokemon>(ids.length);
+  const speciesList = new Array<PokeApiPokemonSpecies>(ids.length);
+
+  await mapWithConcurrency(tasks, detailConcurrency, async (task) => {
+    if (task.kind === 'pokemon') {
+      pokemons[task.index] = await client.fetchPokemon(task.id, options);
+    } else {
+      speciesList[task.index] = await client.fetchPokemonSpecies(task.id, options);
+    }
+  });
+
+  const results = ids.map((_, index) => toListItem(pokemons[index]!, speciesList[index]!));
 
   const nextOffset = list.next === null ? null : params.offset + params.limit;
 

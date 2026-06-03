@@ -6,6 +6,6 @@ export { TtlCache } from './cache.js';
 export type { CacheEntry, CacheLookup, TtlCacheOptions } from './cache.js';
 export { fetchJson } from './fetcher.js';
 export type { FetchJsonOptions } from './fetcher.js';
-export { extractIdFromResourceUrl, fetchPokemonList } from './list.js';
+export { extractIdFromResourceUrl, fetchPokemonList, mapWithConcurrency } from './list.js';
 export type { FetchPokemonListParams } from './list.js';
 export type * from './types.js';

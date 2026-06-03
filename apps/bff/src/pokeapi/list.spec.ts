@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { extractIdFromResourceUrl, fetchPokemonList } from './list.js';
+import { extractIdFromResourceUrl, fetchPokemonList, mapWithConcurrency } from './list.js';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -217,5 +217,87 @@ describe('fetchPokemonList', () => {
     const result = await fetchPokemonList(client, { limit: 20, offset: 0 });
 
     expect(result.results[0]?.name).toEqual({ ja: 'Porygon', en: 'Porygon' });
+  });
+
+  it('never runs more upstream detail fetches concurrently than the configured limit', async () => {
+    const total = 50;
+    const concurrency = 4;
+    const fixtures: UpstreamFixture[] = Array.from({ length: total }, (_, i) => ({
+      id: i + 1,
+      name: `mon-${i + 1}`,
+      jaName: `名前-${i + 1}`,
+      enName: `Mon-${i + 1}`,
+      types: ['normal'],
+      artwork: `https://img.test/artwork/${i + 1}.png`,
+      frontDefault: null,
+    }));
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    const base = makeFetchImpl(fixtures, total);
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      // 一覧（/pokemon）自体はファンアウト前の単発リクエストなので計測対象から除く。
+      const isDetail = !(path.endsWith('/pokemon') || path.endsWith('/pokemon/'));
+
+      if (isDetail) {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // 同時実行が確実に重なるよう、解決をマイクロタスク 1 周ぶん遅らせる。
+        await Promise.resolve();
+      }
+      try {
+        return await base(input);
+      } finally {
+        if (isDetail) {
+          inFlight -= 1;
+        }
+      }
+    });
+
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await fetchPokemonList(
+      client,
+      { limit: total, offset: 0 },
+      undefined,
+      concurrency,
+    );
+
+    expect(result.results).toHaveLength(total);
+    expect(maxInFlight).toBeLessThanOrEqual(concurrency);
+    expect(maxInFlight).toBeGreaterThan(0);
+  });
+});
+
+describe('mapWithConcurrency', () => {
+  it('preserves input order in the results', async () => {
+    const items = [10, 20, 30, 40, 50];
+
+    const result = await mapWithConcurrency(items, 2, async (value) => {
+      await Promise.resolve();
+      return value * 2;
+    });
+
+    expect(result).toEqual([20, 40, 60, 80, 100]);
+  });
+
+  it('caps the number of in-flight mapper calls at the concurrency limit', async () => {
+    const items = Array.from({ length: 20 }, (_, i) => i);
+    const concurrency = 3;
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    await mapWithConcurrency(items, concurrency, async (value) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return value;
+    });
+
+    expect(maxInFlight).toBeLessThanOrEqual(concurrency);
+    expect(maxInFlight).toBe(concurrency);
   });
 });

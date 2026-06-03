@@ -142,4 +142,32 @@ describe('GET /pokemon/list', () => {
     const res = await app.request('/pokemon/list');
     expect(res.status).toBe(404);
   });
+
+  it('maps an upstream 5xx to a 502 response', async () => {
+    const fetchImpl = vi.fn(async () => new Response('upstream exploded', { status: 500 }));
+    const client = new PokeApiClient({
+      baseUrl: UPSTREAM,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const app = new Hono();
+    app.route('/pokemon', createPokemonRoutes(client));
+
+    const res = await app.request('/pokemon/list');
+    expect(res.status).toBe(502);
+  });
+
+  it('maps an upstream network failure to a 502 response', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('network down');
+    });
+    const client = new PokeApiClient({
+      baseUrl: UPSTREAM,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const app = new Hono();
+    app.route('/pokemon', createPokemonRoutes(client));
+
+    const res = await app.request('/pokemon/list');
+    expect(res.status).toBe(502);
+  });
 });
