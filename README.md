@@ -64,6 +64,10 @@ pnpm test      # Vitest
 
 詳細な要件は [`spec.md`](./spec.md) を参照してください。
 
+## デザイン
+
+トーン＆マナー、ロゴ利用規定、カラールール、タイポグラフィは [`docs/brand-guide.md`](./docs/brand-guide.md) にまとめています。色・フォント・余白のトークンは [`apps/web/src/styles/tokens.css`](./apps/web/src/styles/tokens.css) を単一ソースとします。
+
 ## ライセンス
 
 MIT
