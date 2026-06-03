@@ -39,27 +39,56 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
     .app-header {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid currentColor;
+      gap: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      margin-bottom: var(--space-3);
+      color: var(--color-text-on-shell);
     }
     .app-header__title {
-      font-weight: bold;
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-md);
+      letter-spacing: var(--letter-spacing-display);
       text-decoration: none;
-      color: inherit;
+      color: var(--color-text-on-shell);
+    }
+    .app-header__title::before {
+      /* The classic round power LED next to the dex name. */
+      content: '';
+      display: inline-block;
+      width: var(--space-2);
+      height: var(--space-2);
+      margin-right: var(--space-2);
+      border-radius: var(--radius-pill);
+      background-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--bezel-0);
+      vertical-align: middle;
     }
     .app-header__nav {
       display: flex;
-      gap: 0.75rem;
+      gap: var(--space-3);
       flex: 1;
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+    }
+    .app-header__nav a {
+      color: var(--color-text-on-shell);
+      text-decoration: none;
     }
     .app-header__locale {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-2);
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
     }
     .is-active {
-      font-weight: bold;
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+    .app-header__locale button.is-active {
+      background-color: var(--color-text-on-shell);
+      color: var(--color-text-inverse);
     }
   `,
 })

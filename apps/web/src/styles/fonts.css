@@ -1,0 +1,15 @@
+/*
+ * Self-hosted retro fonts (woff2 bundled via @fontsource).
+ * Importing the per-subset CSS pulls in only the @font-face rules and their
+ * font files, so no external/CDN request is made at runtime.
+ *
+ * - Press Start 2P: pixel display face (latin) for headings and dex chrome.
+ * - VT323: dot-matrix terminal face (latin) for readable body text.
+ * - DotGothic16: Japanese dot font, covering kana/kanji for the ja locale so
+ *   the pixel aesthetic holds across both languages.
+ */
+
+@import '@fontsource/press-start-2p/latin-400.css';
+@import '@fontsource/vt323/latin-400.css';
+@import '@fontsource/dotgothic16/latin-400.css';
+@import '@fontsource/dotgothic16/japanese-400.css';

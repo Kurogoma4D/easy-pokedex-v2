@@ -1,1 +1,101 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global stylesheet — loads fonts and design tokens, then applies the retro
+ * handheld Pokédex direction at the document / app shell level so the aesthetic
+ * is visible the moment the app runs. */
+
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* The dot-matrix body face renders small; nudge the root up for readability. */
+  font-size: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body);
+  color: var(--color-text);
+
+  /* Console shell: a plastic bezel surrounding the lit LCD screen. The dotted
+   * grid evokes the dot-matrix panel without hurting text contrast. */
+  background-color: var(--color-shell);
+  background-image:
+    radial-gradient(var(--lcd-1) 1px, transparent 1px),
+    linear-gradient(180deg, var(--bezel-0) 0%, var(--bezel-1) 30%, var(--bezel-2) 100%);
+  background-size:
+    8px 8px,
+    100% 100%;
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: var(--line-height-display);
+  letter-spacing: var(--letter-spacing-display);
+  color: var(--color-text);
+}
+
+h1 {
+  font-size: var(--font-size-display-xl);
+}
+h2 {
+  font-size: var(--font-size-display-lg);
+}
+h3 {
+  font-size: var(--font-size-display-md);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+a {
+  color: var(--color-text);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+button {
+  font-family: var(--font-display);
+  font-size: var(--font-size-display-sm);
+  letter-spacing: var(--letter-spacing-display);
+  color: var(--color-text);
+  background-color: var(--color-surface-raised);
+  border: var(--border-width-chunky) solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow-dot-sm);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--easing-step);
+}
+
+button:hover {
+  transform: translate(-1px, -1px);
+}
+
+button:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+/* High-contrast, keyboard-visible focus ring that survives the retro palette. */
+:focus-visible {
+  outline: var(--border-width-chunky) solid var(--color-focus);
+  outline-offset: 2px;
+}

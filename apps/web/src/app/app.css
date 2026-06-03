@@ -1,3 +1,22 @@
-.container {
-  padding: 1rem;
+/* The console: a plastic handheld shell that frames the lit LCD screen. */
+.console {
+  max-width: var(--layout-max-width);
+  margin: var(--space-4) auto;
+  padding: var(--space-3);
+  background-color: var(--color-shell);
+  border: var(--border-width-frame) solid var(--color-shell-edge);
+  border-radius: var(--radius-screen);
+  box-shadow: var(--shadow-dot-md);
+}
+
+/* The screen: the green dot-matrix panel the dex content renders on. */
+.screen {
+  border: var(--border-width-chunky) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-screen);
+  box-shadow: var(--shadow-screen-inset);
+}
+
+.screen__inner {
+  padding: var(--space-4);
 }
