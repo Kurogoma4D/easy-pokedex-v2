@@ -364,19 +364,40 @@ describe('PokemonList', () => {
     expect(el.querySelectorAll('app-pokemon-card').length).toBe(2);
   });
 
-  it('localizes the title and names when the locale changes', async () => {
+  it('localizes the title, names and type chips when the locale changes', async () => {
     const fixture = TestBed.createComponent(PokemonList);
-    await flushPage(fixture, 0, null, [item(1, { ja: 'フシギダネ', en: 'Bulbasaur' }, ['grass'])]);
+    await flushPage(fixture, 0, null, [
+      item(1, { ja: 'フシギダネ', en: 'Bulbasaur' }, ['grass', 'poison']),
+    ]);
 
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('.card__name')?.textContent).toContain('フシギダネ');
+    expect(el.querySelector('.card__types')?.textContent).toContain('くさ');
+    expect(el.querySelector('.card__types')?.textContent).toContain('どく');
 
     TestBed.inject(LocaleService).setLocale('en');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
+    // UI 文言・ポケモン名・タイプチップ（API 由来の固有名詞）が一括で英語へ切り替わる。
     expect(el.querySelector('.list__title')?.textContent).toContain('POKÉDEX');
     expect(el.querySelector('.card__name')?.textContent).toContain('Bulbasaur');
+    expect(el.querySelector('.card__types')?.textContent).toContain('Grass');
+    expect(el.querySelector('.card__types')?.textContent).toContain('Poison');
+  });
+
+  it('renders en proper nouns from the start when a locale is persisted', async () => {
+    // 永続化済みロケールでマウントすると、初回描画から英語固有名詞で出る（リロード復元の検証）。
+    localStorage.setItem('easy-pokedex.locale', 'en');
+    const fixture = TestBed.createComponent(PokemonList);
+    await flushPage(fixture, 0, null, [
+      item(25, { ja: 'ピカチュウ', en: 'Pikachu' }, ['electric']),
+    ]);
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.list__title')?.textContent).toContain('POKÉDEX');
+    expect(el.querySelector('.card__name')?.textContent).toContain('Pikachu');
+    expect(el.querySelector('.card__types')?.textContent).toContain('Electric');
   });
 });
