@@ -2,6 +2,7 @@ import { TtlCache } from './cache.js';
 import { PokeApiError } from './errors.js';
 import { fetchJson } from './fetcher.js';
 import type {
+  PokeApiAbility,
   PokeApiEvolutionChain,
   PokeApiPokemon,
   PokeApiPokemonSpecies,
@@ -195,6 +196,10 @@ export class PokeApiClient {
 
   fetchType(idOrName: string | number, options?: RequestOptions): Promise<PokeApiType> {
     return this.fetchResource<PokeApiType>(`type/${idOrName}`, undefined, options);
+  }
+
+  fetchAbility(idOrName: string | number, options?: RequestOptions): Promise<PokeApiAbility> {
+    return this.fetchResource<PokeApiAbility>(`ability/${idOrName}`, undefined, options);
   }
 
   fetchPokemonList(

@@ -8,4 +8,11 @@ export { fetchJson } from './fetcher.js';
 export type { FetchJsonOptions } from './fetcher.js';
 export { extractIdFromResourceUrl, fetchPokemonList, mapWithConcurrency } from './list.js';
 export type { FetchPokemonListParams } from './list.js';
+export { fetchPokemonDetail } from './detail.js';
+export {
+  JA_LANGUAGE_CODES,
+  buildLocalizedName,
+  findLocalizedName,
+  selectImageUrl,
+} from './localization.js';
 export type * from './types.js';

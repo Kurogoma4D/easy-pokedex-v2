@@ -1,7 +1,12 @@
 import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
-import { PokeApiClient, PokeApiError, fetchPokemonList } from '../pokeapi/index.js';
+import {
+  PokeApiClient,
+  PokeApiError,
+  fetchPokemonDetail,
+  fetchPokemonList,
+} from '../pokeapi/index.js';
 
 /** 一覧 1 ページの既定件数。無限スクロールの 1 バッチに相当する。 */
 const DEFAULT_LIMIT = 20;
@@ -56,6 +61,27 @@ export function createPokemonRoutes(client: PokeApiClient): Hono {
       if (error instanceof PokeApiError) {
         return c.json(
           { error: 'failed to fetch pokemon list from upstream' },
+          mapErrorStatus(error),
+        );
+      }
+      throw error;
+    }
+  });
+
+  // 詳細は id または name で引く（FR-3）。`/list` を上に置き、静的ルートを優先させる。
+  routes.get('/:idOrName', async (c) => {
+    const idOrName = c.req.param('idOrName').trim().toLowerCase();
+    if (idOrName === '') {
+      return c.json({ error: 'idOrName must not be empty' }, 400);
+    }
+
+    try {
+      const result = await fetchPokemonDetail(client, idOrName);
+      return c.json(result);
+    } catch (error) {
+      if (error instanceof PokeApiError) {
+        return c.json(
+          { error: 'failed to fetch pokemon detail from upstream' },
           mapErrorStatus(error),
         );
       }
