@@ -31,6 +31,13 @@ export async function fetchJson<T>(url: string, options: FetchJsonOptions): Prom
   try {
     response = await fetchImpl(url, { signal });
   } catch (cause) {
+    // 呼び出し側自身の中断はタイムアウト・ネットワーク断と区別する。
+    // これらは上流障害ではないため stale フォールバックの対象にしてはならない。
+    if (options.signal?.aborted === true) {
+      throw new PokeApiError('aborted', `Request to ${url} was aborted by the caller`, {
+        cause,
+      });
+    }
     if (timeoutController.signal.aborted) {
       throw new PokeApiError(
         'timeout',

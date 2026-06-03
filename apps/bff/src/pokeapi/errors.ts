@@ -7,7 +7,9 @@ export type PokeApiErrorKind =
   /** ネットワーク到達不可など fetch 自体が失敗した。 */
   | 'network'
   /** レスポンスボディを JSON として解釈できなかった。 */
-  | 'parse';
+  | 'parse'
+  /** 呼び出し側が signal で中断した。上流障害ではないため stale フォールバックの対象外。 */
+  | 'aborted';
 
 export interface PokeApiErrorOptions {
   readonly status?: number;

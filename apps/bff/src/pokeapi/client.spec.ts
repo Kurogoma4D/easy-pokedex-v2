@@ -159,6 +159,80 @@ describe('PokeApiClient', () => {
     expect(error.isUpstreamFailure).toBe(true);
   });
 
+  it('coalesces concurrent identical cache-miss calls into one upstream fetch', async () => {
+    let resolveResponse: ((response: Response) => void) | undefined;
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+    const client = new PokeApiClient({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const first = client.fetchPokemon(25);
+    const second = client.fetchPokemon(25);
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+
+    resolveResponse?.(jsonResponse(pikachu));
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(a).toEqual(pikachu);
+    expect(b).toEqual(pikachu);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('issues a new upstream fetch once an in-flight request settles', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(pikachu));
+    const client = new PokeApiClient({
+      ttlMs: 1000,
+      staleMs: 0,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.fetchPokemon(25);
+    // 直前の取得は既に settle し in-flight から除去されているため、新規リクエストになる。
+    await client.fetchPokemon(25, { forceRefresh: true });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('propagates a caller abort without consuming a stale fallback', async () => {
+    const time = clock();
+    const controller = new AbortController();
+    let mode: 'ok' | 'hang' = 'ok';
+    const fetchImpl = vi.fn((_url: string, init?: { signal?: AbortSignal }) =>
+      mode === 'ok'
+        ? Promise.resolve(jsonResponse(pikachu))
+        : new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(new DOMException('aborted', 'AbortError'));
+            });
+          }),
+    );
+    const client = new PokeApiClient({
+      ttlMs: 1000,
+      staleMs: 100_000,
+      now: time.now,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    // 先に stale 候補をキャッシュへ載せる。
+    await client.fetchPokemon(25);
+    time.advance(2000);
+    mode = 'hang';
+
+    const pending = client.fetchPokemon(25, { signal: controller.signal }).catch((e: unknown) => e);
+    controller.abort();
+    const error = (await pending) as PokeApiError;
+
+    expect(error).toBeInstanceOf(PokeApiError);
+    expect(error.kind).toBe('aborted');
+    expect(error.isUpstreamFailure).toBe(false);
+  });
+
   it('passes pagination params as query string for list requests', async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({ count: 0, next: null, previous: null, results: [] }),

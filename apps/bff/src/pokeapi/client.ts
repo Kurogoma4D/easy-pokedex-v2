@@ -64,6 +64,11 @@ export class PokeApiClient {
   readonly #timeoutMs: number;
   readonly #fetchImpl: typeof fetch;
   readonly #cache: TtlCache<unknown>;
+  /**
+   * 進行中の上流取得を cacheKey 単位で共有するための単一フライト管理。
+   * 同一キーの cache-miss が同時に到来しても上流リクエストは 1 回に集約する（spec 7. 上流負荷抑制）。
+   */
+  readonly #inFlight = new Map<string, Promise<unknown>>();
 
   constructor(options: PokeApiClientOptions = {}) {
     this.#baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -99,24 +104,74 @@ export class PokeApiClient {
       }
     }
 
-    const url = this.#buildUrl(path, query);
-    try {
-      const value = await fetchJson<T>(url, {
-        timeoutMs: this.#timeoutMs,
-        fetchImpl: this.#fetchImpl,
-        signal: requestOptions.signal,
-      });
-      this.#cache.set(cacheKey, value);
-      return value;
-    } catch (error) {
-      if (error instanceof PokeApiError && error.isUpstreamFailure) {
-        const stale = this.#cache.getStale(cacheKey);
-        if (stale !== undefined) {
-          return stale as T;
-        }
-      }
-      throw error;
+    const upstream = this.#fetchUpstream<T>(cacheKey, path, query);
+
+    // 呼び出し側 signal は共有リクエストには伝播させない（1 呼び出しの中断が
+    // 同一キーの他の待機者を巻き込まないため）。代わりに各呼び出しは自身の signal と
+    // 共有リクエストを race し、自分の中断のみを観測する。
+    const signal = requestOptions.signal;
+    if (signal === undefined) {
+      return upstream;
     }
+    if (signal.aborted) {
+      throw new PokeApiError('aborted', `Request for ${cacheKey} was aborted by the caller`);
+    }
+    return await new Promise<T>((resolve, reject) => {
+      const onAbort = (): void => {
+        reject(new PokeApiError('aborted', `Request for ${cacheKey} was aborted by the caller`));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      upstream.then(
+        (value) => {
+          signal.removeEventListener('abort', onAbort);
+          resolve(value);
+        },
+        (error: unknown) => {
+          signal.removeEventListener('abort', onAbort);
+          reject(error as Error);
+        },
+      );
+    });
+  }
+
+  /**
+   * cacheKey 単位で進行中の上流取得を共有する。新規取得は cache 更新と stale フォールバックを含み、
+   * 解決・拒否いずれの場合も in-flight エントリを取り除く。
+   */
+  #fetchUpstream<T>(
+    cacheKey: string,
+    path: string,
+    query?: Record<string, string | number>,
+  ): Promise<T> {
+    const existing = this.#inFlight.get(cacheKey);
+    if (existing !== undefined) {
+      return existing as Promise<T>;
+    }
+
+    const url = this.#buildUrl(path, query);
+    const promise = (async (): Promise<T> => {
+      try {
+        const value = await fetchJson<T>(url, {
+          timeoutMs: this.#timeoutMs,
+          fetchImpl: this.#fetchImpl,
+        });
+        this.#cache.set(cacheKey, value);
+        return value;
+      } catch (error) {
+        if (error instanceof PokeApiError && error.isUpstreamFailure) {
+          const stale = this.#cache.getStale(cacheKey);
+          if (stale !== undefined) {
+            return stale as T;
+          }
+        }
+        throw error;
+      } finally {
+        this.#inFlight.delete(cacheKey);
+      }
+    })();
+
+    this.#inFlight.set(cacheKey, promise);
+    return promise;
   }
 
   fetchPokemon(idOrName: string | number, options?: RequestOptions): Promise<PokeApiPokemon> {

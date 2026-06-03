@@ -24,6 +24,11 @@ export interface TtlCacheOptions {
   readonly staleMs?: number;
   /** テスト容易性のための時刻取得関数の注入口。既定は `Date.now`。 */
   readonly now?: () => number;
+  /**
+   * 保持する最大エントリ数。アクセスされないキー（例: ページネーション一覧）が
+   * 無制限に増えるのを防ぐ上限。超過時はまず破棄済みエントリを掃除し、なお超過していれば
+   * 最古の挿入エントリから退避する。既定は 10,000。 */
+  readonly maxEntries?: number;
 }
 
 export interface CacheLookup<T> {
@@ -37,14 +42,20 @@ export class TtlCache<T> {
   readonly #ttlMs: number;
   readonly #staleMs: number;
   readonly #now: () => number;
+  readonly #maxEntries: number;
 
   constructor(options: TtlCacheOptions) {
     if (options.ttlMs <= 0) {
       throw new Error('ttlMs must be greater than 0');
     }
+    const maxEntries = options.maxEntries ?? 10_000;
+    if (maxEntries <= 0) {
+      throw new Error('maxEntries must be greater than 0');
+    }
     this.#ttlMs = options.ttlMs;
     this.#staleMs = options.staleMs ?? 0;
     this.#now = options.now ?? Date.now;
+    this.#maxEntries = maxEntries;
   }
 
   /** 鮮度を問わず取得する。完全に破棄された（discardAt 超過）エントリは取り除いて undefined を返す。 */
@@ -74,11 +85,38 @@ export class TtlCache<T> {
 
   set(key: string, value: T): void {
     const now = this.#now();
+    // 既存キーの更新を最新エントリとして扱うため（退避順は最古挿入が先）、
+    // 上限判定の前に一度削除してから再挿入し Map の反復順を更新する。
+    this.#store.delete(key);
     this.#store.set(key, {
       value,
       expiresAt: now + this.#ttlMs,
       discardAt: now + this.#ttlMs + this.#staleMs,
     });
+    if (this.#store.size > this.#maxEntries) {
+      this.#evict(now);
+    }
+  }
+
+  /**
+   * 上限超過時の退避。まず discardAt を過ぎたエントリを掃除し、なお超過していれば
+   * Map の挿入順（最古から）にエントリを削除して上限まで戻す。
+   */
+  #evict(now: number): void {
+    for (const [key, entry] of this.#store) {
+      if (this.#store.size <= this.#maxEntries) {
+        break;
+      }
+      if (now >= entry.discardAt) {
+        this.#store.delete(key);
+      }
+    }
+    for (const key of this.#store.keys()) {
+      if (this.#store.size <= this.#maxEntries) {
+        break;
+      }
+      this.#store.delete(key);
+    }
   }
 
   delete(key: string): void {

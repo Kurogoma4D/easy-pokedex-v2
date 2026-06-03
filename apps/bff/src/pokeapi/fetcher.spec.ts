@@ -86,6 +86,32 @@ describe('fetchJson', () => {
     expect(error.isUpstreamFailure).toBe(true);
   });
 
+  it('classifies a caller-initiated abort as `aborted`, not an upstream failure', async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('aborted', 'AbortError'));
+          });
+        }),
+    );
+
+    const pending = fetchJson('https://example.test/slow', {
+      timeoutMs: 60_000,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      signal: controller.signal,
+    }).catch((e: unknown) => e);
+
+    controller.abort();
+    const error = (await pending) as PokeApiError;
+
+    expect(error).toBeInstanceOf(PokeApiError);
+    expect(error.kind).toBe('aborted');
+    // 上流障害ではないため stale フォールバックは発動してはならない。
+    expect(error.isUpstreamFailure).toBe(false);
+  });
+
   it('throws a parse PokeApiError on invalid JSON', async () => {
     const fetchImpl = vi.fn(
       async () =>
