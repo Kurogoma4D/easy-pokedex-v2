@@ -11,8 +11,43 @@ const ja = {
   'locale.label': '言語',
   'locale.ja': '日本語',
   'locale.en': 'English',
-  'list.placeholder': 'ポケモン一覧（準備中）',
-  'detail.placeholder': 'ポケモン詳細（準備中）',
+
+  // 一覧画面（モックアップ）
+  'list.title': 'ずかん',
+  'list.count': '{count}ひき とうろくずみ',
+  'list.empty': 'じょうけんに あう ポケモンが いません。',
+  'list.loadingMore': 'よみこみちゅう…',
+  'list.endOfList': 'ここまで',
+
+  // 検索／フィルタ（モックアップ）
+  'search.title': 'けんさく',
+  'search.nameLabel': 'なまえ',
+  'search.namePlaceholder': 'なまえで さがす',
+  'search.typeLabel': 'タイプ',
+  'search.generationLabel': 'せだい',
+  'search.generationAll': 'すべて',
+  'search.reset': 'リセット',
+  'search.resultSummary': '{count}けん ヒット',
+
+  // 詳細画面（モックアップ）
+  'detail.height': 'たかさ',
+  'detail.weight': 'おもさ',
+  'detail.types': 'タイプ',
+  'detail.stats': 'ステータス',
+  'detail.statTotal': 'ごうけい',
+  'detail.abilities': 'とくせい',
+  'detail.abilityHidden': 'かくれとくせい',
+  'detail.evolution': 'しんか',
+  'detail.flavor': 'ずかんせつめい',
+  'detail.back': 'いちらんへ',
+
+  // ステータス名
+  'stat.hp': 'HP',
+  'stat.attack': 'こうげき',
+  'stat.defense': 'ぼうぎょ',
+  'stat.special-attack': 'とくこう',
+  'stat.special-defense': 'とくぼう',
+  'stat.speed': 'すばやさ',
 } as const;
 
 export type MessageKey = keyof typeof ja;
@@ -26,8 +61,43 @@ const en: MessageDictionary = {
   'locale.label': 'Language',
   'locale.ja': '日本語',
   'locale.en': 'English',
-  'list.placeholder': 'Pokémon list (coming soon)',
-  'detail.placeholder': 'Pokémon detail (coming soon)',
+
+  // List screen (mockup)
+  'list.title': 'POKÉDEX',
+  'list.count': '{count} registered',
+  'list.empty': 'No Pokémon match these filters.',
+  'list.loadingMore': 'Loading more…',
+  'list.endOfList': 'End of list',
+
+  // Search / filter (mockup)
+  'search.title': 'SEARCH',
+  'search.nameLabel': 'Name',
+  'search.namePlaceholder': 'Search by name',
+  'search.typeLabel': 'Type',
+  'search.generationLabel': 'Generation',
+  'search.generationAll': 'All',
+  'search.reset': 'Reset',
+  'search.resultSummary': '{count} results',
+
+  // Detail screen (mockup)
+  'detail.height': 'Height',
+  'detail.weight': 'Weight',
+  'detail.types': 'Type',
+  'detail.stats': 'Stats',
+  'detail.statTotal': 'Total',
+  'detail.abilities': 'Abilities',
+  'detail.abilityHidden': 'Hidden',
+  'detail.evolution': 'Evolution',
+  'detail.flavor': 'Pokédex entry',
+  'detail.back': 'Back to list',
+
+  // Stat names
+  'stat.hp': 'HP',
+  'stat.attack': 'Attack',
+  'stat.defense': 'Defense',
+  'stat.special-attack': 'Sp. Atk',
+  'stat.special-defense': 'Sp. Def',
+  'stat.speed': 'Speed',
 };
 
 export const MESSAGES: Record<Locale, MessageDictionary> = {
