@@ -19,6 +19,17 @@ describe('PokemonSearch', () => {
     expect(el.querySelectorAll('.search__type').length).toBe(18);
   });
 
+  it('disables the generation select until its BFF wiring lands (#13)', async () => {
+    const fixture = TestBed.createComponent(PokemonSearch);
+    await fixture.whenStable();
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      'select',
+    ) as HTMLSelectElement;
+
+    expect(select.disabled).toBe(true);
+    expect(select.getAttribute('aria-disabled')).toBe('true');
+  });
+
   it('toggles a type selection and reflects it via aria-pressed', async () => {
     const fixture = TestBed.createComponent(PokemonSearch);
     await fixture.whenStable();

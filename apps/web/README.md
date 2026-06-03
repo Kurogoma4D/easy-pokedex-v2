@@ -12,6 +12,25 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+## BFF connection (dev proxy)
+
+The frontend never calls PokeAPI directly. All data requests go to the Hono BFF under the
+`API_BASE_URL` token (default `/api`, see `src/app/core/api-base-url.ts`).
+
+During `ng serve`, `proxy.conf.json` (wired via `angular.json` → `serve.options.proxyConfig`)
+forwards `/api/*` to the BFF at `http://localhost:3000`, stripping the `/api` prefix so that
+`/api/pokemon/list` reaches the BFF route `GET /pokemon/list`. Start the BFF alongside the web
+dev server:
+
+```bash
+# from the repository root
+pnpm dev:bff   # Hono BFF on http://localhost:3000
+pnpm dev:web   # Angular dev server on http://localhost:4200 (proxies /api → BFF)
+```
+
+In other environments, route `/api` to the BFF at the edge/reverse proxy, or override the
+`API_BASE_URL` injection token with an absolute BFF URL.
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:

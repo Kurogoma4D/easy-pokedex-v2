@@ -7,9 +7,11 @@ import { TypeChip } from '../shared/type-chip';
 import { typeChipStyle } from '../shared/type-style';
 
 /**
- * 検索／フィルタ UI（FR-2）。名前の部分一致・タイプの複数選択・世代の単一選択を扱う。
+ * 検索／フィルタ UI（FR-2）。名前の部分一致・タイプの複数選択を扱う。
  * 条件は `model` シグナルで親（一覧画面）と双方向に共有し、絞り込みの実行は親が担う。
- * ここではモックとして条件入力の見た目と操作感を確定させる。
+ *
+ * 世代フィルタは BFF 検索エンドポイント接続（#13）まで機能しないため `disabled` で操作不可にする。
+ * 当面は値を変更できず、`generation` は常に空文字のまま親へ渡る。
  */
 @Component({
   selector: 'app-pokemon-search',
@@ -33,11 +35,17 @@ import { typeChipStyle } from '../shared/type-style';
         </label>
 
         <label class="search__field">
-          <span class="search__label">{{ messages()['search.generationLabel'] }}</span>
+          <span class="search__label">
+            {{ messages()['search.generationLabel'] }}
+            <span class="search__badge">{{ messages()['search.generationDisabled'] }}</span>
+          </span>
           <select
             class="search__input"
             [value]="generation()"
             (change)="onGenerationChange($event)"
+            disabled
+            [attr.aria-disabled]="true"
+            [title]="messages()['search.generationDisabled']"
           >
             <option value="">{{ messages()['search.generationAll'] }}</option>
             @for (gen of generations; track gen.id) {
@@ -115,6 +123,16 @@ import { typeChipStyle } from '../shared/type-style';
       display: inline-flex;
       align-items: center;
       gap: var(--space-1);
+    }
+    /* The generation filter ships its BFF wiring later; the badge marks it as not yet active. */
+    .search__badge {
+      margin-left: var(--space-1);
+      font-size: var(--font-size-body-sm);
+      color: var(--color-text-muted);
+    }
+    .search__input:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
     }
     .search__input {
       font-family: var(--font-body);

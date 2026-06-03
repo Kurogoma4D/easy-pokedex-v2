@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { LocaleService } from '../../i18n/locale.service';
-import { MOCK_TYPES, TypeId } from '../mock/pokemon-mock-data';
+import { LocalizedName } from '../../i18n/localized-name';
+import { MOCK_TYPES } from '../mock/pokemon-mock-data';
 import { typeChipStyle } from './type-style';
 
-/** タイプ表示名を識別子から引く（モック用の固定辞書）。 */
-const TYPE_NAME = new Map(MOCK_TYPES.map((t) => [t.id, t.name] as const));
+/** タイプ識別子（英語）から多言語表示名を引く固定辞書（18 種）。 */
+const TYPE_NAME = new Map<string, LocalizedName>(MOCK_TYPES.map((t) => [t.id, t.name] as const));
 
 /**
  * タイプチップ。`--type-*` 由来の配色で塗り、ロケールに応じた表示名を出す。
@@ -34,7 +35,7 @@ const TYPE_NAME = new Map(MOCK_TYPES.map((t) => [t.id, t.name] as const));
 export class TypeChip {
   private readonly localeService = inject(LocaleService);
 
-  readonly type = input.required<TypeId>();
+  readonly type = input.required<string>();
 
   protected readonly style = computed(() => typeChipStyle(this.type()));
   protected readonly label = computed(() => {

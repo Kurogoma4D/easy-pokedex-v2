@@ -17,7 +17,9 @@ describe('TypeChip', () => {
     const chip = (fixture.nativeElement as HTMLElement).querySelector('.type-chip') as HTMLElement;
 
     expect(chip.textContent).toContain('くさ');
-    expect(chip.style.getPropertyValue('--chip-fill')).toBe('var(--type-grass)');
+    expect(chip.style.getPropertyValue('--chip-fill')).toBe(
+      'var(--type-grass, var(--color-surface-raised))',
+    );
   });
 
   it('switches the label with the locale', async () => {

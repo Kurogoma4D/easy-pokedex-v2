@@ -19,6 +19,8 @@ const ja = {
   'list.empty': 'じょうけんに あう ポケモンが いません。',
   'list.loadingMore': 'よみこみちゅう…',
   'list.endOfList': 'ここまで',
+  'list.error': 'ポケモンの よみこみに しっぱいしました。',
+  'list.retry': 'もういちど',
 
   // 検索／フィルタ（モックアップ）
   'search.title': 'けんさく',
@@ -27,6 +29,7 @@ const ja = {
   'search.typeLabel': 'タイプ',
   'search.generationLabel': 'せだい',
   'search.generationAll': 'すべて',
+  'search.generationDisabled': 'じゅんびちゅう',
   'search.reset': 'リセット',
   'search.resultSummary': '{count}けん ヒット',
 
@@ -70,6 +73,8 @@ const en: MessageDictionary = {
   'list.empty': 'No Pokémon match these filters.',
   'list.loadingMore': 'Loading more…',
   'list.endOfList': 'End of list',
+  'list.error': 'Failed to load Pokémon.',
+  'list.retry': 'Retry',
 
   // Search / filter (mockup)
   'search.title': 'SEARCH',
@@ -78,6 +83,7 @@ const en: MessageDictionary = {
   'search.typeLabel': 'Type',
   'search.generationLabel': 'Generation',
   'search.generationAll': 'All',
+  'search.generationDisabled': 'Coming soon',
   'search.reset': 'Reset',
   'search.resultSummary': '{count} results',
 

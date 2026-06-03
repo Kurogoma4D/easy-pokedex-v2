@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
-import { MockListItem } from '../mock/pokemon-mock-data';
+import { PokemonListItem } from '../list/pokemon-list.model';
 import { TypeChip } from './type-chip';
 
 /** 図鑑番号を `#001` 形式へ整形する。 */
@@ -103,7 +103,7 @@ function formatDexNumber(id: number): string {
 export class PokemonCard {
   private readonly localeService = inject(LocaleService);
 
-  readonly item = input.required<MockListItem>();
+  readonly item = input.required<PokemonListItem>();
 
   protected readonly dexNumber = computed(() => formatDexNumber(this.item().id));
   protected readonly name = computed(() => this.localeService.localizeName(this.item().name));
