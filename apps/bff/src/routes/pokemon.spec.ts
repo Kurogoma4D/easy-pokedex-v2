@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from '../pokeapi/index.js';
-import type { PokemonListResponse } from '../pokeapi/index.js';
+import type { PokemonDetail, PokemonListResponse } from '../pokeapi/index.js';
 import { createPokemonRoutes } from './pokemon.js';
 
 const UPSTREAM = 'https://upstream.test/api/v2';
@@ -168,6 +168,141 @@ describe('GET /pokemon/list', () => {
     app.route('/pokemon', createPokemonRoutes(client));
 
     const res = await app.request('/pokemon/list');
+    expect(res.status).toBe(502);
+  });
+});
+
+/** id=25(Pikachu) を単独で返すモック上流（進化なしの単一ノード）。 */
+function makeDetailFetchImpl() {
+  return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+    const path = new URL(String(input)).pathname;
+
+    if (/\/evolution-chain\/\d+\/?$/.test(path)) {
+      return jsonResponse({
+        id: 10,
+        chain: {
+          species: { name: 'pikachu', url: `${UPSTREAM}/pokemon-species/25/` },
+          evolves_to: [],
+        },
+      });
+    }
+
+    const typeMatch = /\/type\/([^/]+)\/?$/.exec(path);
+    if (typeMatch !== null) {
+      return jsonResponse({
+        id: 1,
+        name: typeMatch[1],
+        names: [
+          { name: 'でんき', language: { name: 'ja-Hrkt', url: '' } },
+          { name: 'electric', language: { name: 'en', url: '' } },
+        ],
+        pokemon: [],
+      });
+    }
+
+    const abilityMatch = /\/ability\/([^/]+)\/?$/.exec(path);
+    if (abilityMatch !== null) {
+      return jsonResponse({
+        id: 1,
+        name: abilityMatch[1],
+        names: [
+          { name: 'せいでんき', language: { name: 'ja-Hrkt', url: '' } },
+          { name: 'Static', language: { name: 'en', url: '' } },
+        ],
+      });
+    }
+
+    if (/\/pokemon-species\//.test(path)) {
+      return jsonResponse({
+        id: 25,
+        name: 'pikachu',
+        names: [
+          { name: 'ピカチュウ', language: { name: 'ja-Hrkt', url: '' } },
+          { name: 'Pikachu', language: { name: 'en', url: '' } },
+        ],
+        flavor_text_entries: [],
+        generation: { name: 'generation-i', url: '' },
+        evolution_chain: { url: `${UPSTREAM}/evolution-chain/10/` },
+        is_legendary: false,
+        is_mythical: false,
+      });
+    }
+
+    if (/\/pokemon\//.test(path)) {
+      return jsonResponse({
+        id: 25,
+        name: 'pikachu',
+        height: 4,
+        weight: 60,
+        base_experience: 112,
+        types: [{ slot: 1, type: { name: 'electric', url: '' } }],
+        stats: [{ base_stat: 35, effort: 0, stat: { name: 'hp', url: '' } }],
+        abilities: [{ is_hidden: false, slot: 1, ability: { name: 'static', url: '' } }],
+        sprites: {
+          front_default: 'https://img.test/25.png',
+          front_shiny: null,
+          other: { 'official-artwork': { front_default: 'https://img.test/art/25.png' } },
+        },
+        species: { name: 'pikachu', url: `${UPSTREAM}/pokemon-species/25/` },
+      });
+    }
+
+    return new Response('not found', { status: 404 });
+  });
+}
+
+describe('GET /pokemon/:idOrName', () => {
+  it('returns the aggregated detail with ja/en proper nouns in one response', async () => {
+    const app = makeApp(makeDetailFetchImpl());
+
+    const res = await app.request('/pokemon/pikachu');
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as PokemonDetail;
+    expect(body.id).toBe(25);
+    expect(body.name).toEqual({ ja: 'ピカチュウ', en: 'Pikachu' });
+    expect(body.imageUrl).toBe('https://img.test/art/25.png');
+    expect(body.types).toEqual([{ id: 'electric', name: { ja: 'でんき', en: 'electric' } }]);
+    expect(body.stats).toEqual([{ id: 'hp', base: 35 }]);
+    expect(body.abilities).toEqual([
+      { id: 'static', name: { ja: 'せいでんき', en: 'Static' }, isHidden: false },
+    ]);
+    expect(body.evolutionChain.id).toBe(25);
+    expect(body.evolutionChain.evolvesTo).toEqual([]);
+  });
+
+  it('resolves detail by numeric id as well', async () => {
+    const app = makeApp(makeDetailFetchImpl());
+
+    const res = await app.request('/pokemon/25');
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as PokemonDetail;
+    expect(body.id).toBe(25);
+  });
+
+  it('does not shadow the static /list route', async () => {
+    const app = makeApp(makeFetchImpl());
+
+    const res = await app.request('/pokemon/list');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PokemonListResponse;
+    expect(body.results.length).toBeGreaterThan(0);
+  });
+
+  it('maps an upstream 404 to a 404 response', async () => {
+    const fetchImpl = vi.fn(async () => new Response('not found', { status: 404 }));
+    const app = makeApp(fetchImpl as unknown as ReturnType<typeof makeDetailFetchImpl>);
+
+    const res = await app.request('/pokemon/missingno');
+    expect(res.status).toBe(404);
+  });
+
+  it('maps an upstream 5xx to a 502 response', async () => {
+    const fetchImpl = vi.fn(async () => new Response('boom', { status: 500 }));
+    const app = makeApp(fetchImpl as unknown as ReturnType<typeof makeDetailFetchImpl>);
+
+    const res = await app.request('/pokemon/pikachu');
     expect(res.status).toBe(502);
   });
 });
