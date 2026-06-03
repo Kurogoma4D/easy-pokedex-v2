@@ -19,15 +19,48 @@ describe('PokemonSearch', () => {
     expect(el.querySelectorAll('.search__type').length).toBe(18);
   });
 
-  it('disables the generation select until its BFF wiring lands (#13)', async () => {
+  it('enables the generation select and lists all known generations', async () => {
     const fixture = TestBed.createComponent(PokemonSearch);
     await fixture.whenStable();
     const select = (fixture.nativeElement as HTMLElement).querySelector(
       'select',
     ) as HTMLSelectElement;
 
-    expect(select.disabled).toBe(true);
-    expect(select.getAttribute('aria-disabled')).toBe('true');
+    expect(select.disabled).toBe(false);
+    // "All" option plus the nine PokeAPI generations.
+    expect(select.querySelectorAll('option').length).toBe(10);
+  });
+
+  it('updates the generation model when an option is chosen', async () => {
+    const fixture = TestBed.createComponent(PokemonSearch);
+    await fixture.whenStable();
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      'select',
+    ) as HTMLSelectElement;
+
+    select.value = 'generation-ii';
+    select.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.generation()).toBe('generation-ii');
+  });
+
+  it('caps type selection at five and disables further unselected toggles', async () => {
+    const fixture = TestBed.createComponent(PokemonSearch);
+    const instance = fixture.componentInstance;
+    instance.selectedTypes.set(['normal', 'fire', 'water', 'grass', 'electric']);
+    await fixture.whenStable();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const toggles = [...el.querySelectorAll<HTMLButtonElement>('.search__type')];
+    // The five selected stay enabled; every other toggle is disabled.
+    const disabled = toggles.filter((t) => t.disabled);
+    expect(disabled.length).toBe(toggles.length - 5);
+
+    // Clicking a disabled (unselected) toggle does not add a sixth type.
+    disabled[0]?.click();
+    await fixture.whenStable();
+    expect(instance.selectedTypes().length).toBe(5);
   });
 
   it('toggles a type selection and reflects it via aria-pressed', async () => {

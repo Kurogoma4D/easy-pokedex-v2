@@ -30,3 +30,19 @@ export interface PokemonListResponse {
   readonly nextOffset: number | null;
   readonly results: readonly PokemonListItem[];
 }
+
+/**
+ * 検索エンドポイント（`/pokemon/search`）のレスポンス。1 要素の形・カーソル情報は一覧と揃えてあり、
+ * フロントは一覧と検索で同じ描画・無限スクロールを使える（BFF `PokemonSearchResponse` のミラー）。
+ */
+export interface PokemonSearchResponse {
+  /** 絞り込み後の総件数（ページング前）。 */
+  readonly count: number;
+  /** 今回返した範囲の先頭オフセット。 */
+  readonly offset: number;
+  /** 今回返した範囲の要求件数。 */
+  readonly limit: number;
+  /** 次ページの offset。これ以上無い場合は null。 */
+  readonly nextOffset: number | null;
+  readonly results: readonly PokemonListItem[];
+}
