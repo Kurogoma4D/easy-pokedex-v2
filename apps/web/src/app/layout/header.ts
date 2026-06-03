@@ -3,6 +3,8 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { Locale } from '../i18n/locale';
 import { LocaleService } from '../i18n/locale.service';
 import { MessageKey } from '../i18n/messages';
+import { Icon } from '../shared/icon/icon';
+import { Logo } from '../shared/icon/logo';
 
 /** ロケール切り替えボタンに使う、ロケールとその表示文言キーの対応。 */
 const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
@@ -13,15 +15,25 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
 @Component({
   selector: 'app-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, Icon, Logo],
   template: `
     <header class="app-header">
-      <a class="app-header__title" routerLink="/">{{ messages()['app.title'] }}</a>
+      <a class="app-header__title" routerLink="/">
+        <app-logo [label]="messages()['app.title']" />
+      </a>
       <nav class="app-header__nav">
         <a routerLink="/list" routerLinkActive="is-active">{{ messages()['nav.list'] }}</a>
       </nav>
-      <div class="app-header__locale">
-        <span>{{ messages()['locale.label'] }}</span>
+      <div
+        class="app-header__locale"
+        role="group"
+        [attr.aria-label]="messages()['a11y.localeSwitch']"
+      >
+        <app-icon
+          name="globe"
+          [label]="messages()['locale.label']"
+          class="app-header__locale-icon"
+        />
         @for (option of localeOptions; track option.locale) {
           <button
             type="button"
@@ -45,23 +57,10 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       color: var(--color-text-on-shell);
     }
     .app-header__title {
-      font-family: var(--font-display);
+      display: inline-flex;
       font-size: var(--font-size-display-md);
-      letter-spacing: var(--letter-spacing-display);
       text-decoration: none;
       color: var(--color-text-on-shell);
-    }
-    .app-header__title::before {
-      /* The classic round power LED next to the dex name. */
-      content: '';
-      display: inline-block;
-      width: var(--space-2);
-      height: var(--space-2);
-      margin-right: var(--space-2);
-      border-radius: var(--radius-pill);
-      background-color: var(--color-accent);
-      box-shadow: 0 0 0 2px var(--bezel-0);
-      vertical-align: middle;
     }
     .app-header__nav {
       display: flex;
@@ -80,6 +79,12 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       gap: var(--space-2);
       font-family: var(--font-display);
       font-size: var(--font-size-display-sm);
+    }
+    .app-header__locale-icon {
+      /* The globe sits one step up from the button label so it reads as a group
+       * marker rather than competing with the language codes. */
+      font-size: var(--font-size-display-md);
+      color: var(--color-text-on-shell);
     }
     .is-active {
       text-decoration: underline;

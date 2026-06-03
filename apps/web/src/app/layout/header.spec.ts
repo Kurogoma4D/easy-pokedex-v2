@@ -24,4 +24,17 @@ describe('Header', () => {
 
     expect(el.querySelector('.app-header__nav')?.textContent).toContain('List');
   });
+
+  it('shows the brand logo wordmark and a labeled language-switch group', async () => {
+    const fixture = TestBed.createComponent(Header);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('app-logo .logo__word')?.textContent).toContain('イージーポケモン図鑑');
+
+    const group = el.querySelector('.app-header__locale');
+    expect(group?.getAttribute('role')).toBe('group');
+    expect(group?.getAttribute('aria-label')).toBe('言語の切り替え');
+    expect(group?.querySelector('app-icon[name="globe"]')).not.toBeNull();
+  });
 });

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
 import { MessageKey } from '../../i18n/messages';
 import { LocalizedName } from '../../i18n/localized-name';
+import { Icon } from '../../shared/icon/icon';
 import { MOCK_DETAIL, MockEvolutionNode, MockStat } from '../mock/pokemon-mock-data';
 import { TypeChip } from '../shared/type-chip';
 
@@ -37,10 +38,13 @@ interface StatRow {
 @Component({
   selector: 'app-pokemon-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TypeChip],
+  imports: [RouterLink, TypeChip, Icon],
   template: `
     <article class="detail">
-      <a class="detail__back" routerLink="/list">‹ {{ messages()['detail.back'] }}</a>
+      <a class="detail__back" routerLink="/list">
+        <app-icon name="chevron-left" />
+        {{ messages()['detail.back'] }}
+      </a>
 
       <header class="detail__head">
         <span class="detail__dex">{{ dexNumber() }}</span>
@@ -154,6 +158,9 @@ interface StatRow {
     }
     .detail__back {
       align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
       color: var(--color-text);
       text-decoration: none;
     }
