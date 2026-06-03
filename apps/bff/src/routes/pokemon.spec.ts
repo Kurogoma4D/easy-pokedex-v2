@@ -493,4 +493,38 @@ describe('GET /pokemon/search', () => {
     const res = await app.request('/pokemon/search?type=grass');
     expect(res.status).toBe(502);
   });
+
+  it('treats an unknown type as empty results with 200, not 404', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/type\/([^/]+)\/?$/.test(path)) {
+        return new Response('not found', { status: 404 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const app = makeApp(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?type=notatype');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PokemonSearchResponse;
+    expect(body.results).toEqual([]);
+    expect(body.count).toBe(0);
+  });
+
+  it('rejects too many type params with 400', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const query = ['grass', 'poison', 'fire', 'water', 'electric', 'ice']
+      .map((t) => `type=${t}`)
+      .join('&');
+    const res = await app.request(`/pokemon/search?${query}`);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed generation param with 400', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?generation=not a generation');
+    expect(res.status).toBe(400);
+  });
 });

@@ -15,6 +15,18 @@ const DEFAULT_LIMIT = 20;
 /** 1 ページで取得を許可する最大件数。上流負荷・レイテンシの上限を設ける。 */
 const MAX_LIMIT = 100;
 
+/**
+ * 1 検索で受け付ける `type` の最大数。タイプは AND 積集合で扱い 1 つにつき上流 1 リクエストの
+ * ファンアウトが発生するため、無制限な指定で上流負荷が膨らむのを防ぐ。超過時は 400 を返す。
+ */
+const MAX_TYPE_PARAMS = 5;
+
+/**
+ * `generation` パラメータの許容形。PokeAPI の世代名（`generation-i` 等）または数値 id に限り、
+ * 想定外の文字列で上流へ無駄打ちしないよう入力段で弾く。
+ */
+const GENERATION_PATTERN = /^(generation-[a-z]+|\d+)$/;
+
 /** クエリ文字列を非負整数として解釈する。未指定なら fallback、不正なら null。 */
 function parseNonNegativeInt(raw: string | undefined, fallback: number): number | null {
   if (raw === undefined || raw === '') {
@@ -84,13 +96,26 @@ export function createPokemonRoutes(client: PokeApiClient): Hono {
     }
 
     const name = c.req.query('name');
-    const types = c.req.queries('type') ?? [];
+    const rawTypes = (c.req.queries('type') ?? []).filter((t) => t.trim() !== '');
     const generation = c.req.query('generation');
+
+    if (rawTypes.length > MAX_TYPE_PARAMS) {
+      return c.json({ error: `at most ${MAX_TYPE_PARAMS} type values are allowed` }, 400);
+    }
+
+    const trimmedGeneration =
+      generation !== undefined && generation.trim() !== '' ? generation.trim() : undefined;
+    if (trimmedGeneration !== undefined && !GENERATION_PATTERN.test(trimmedGeneration)) {
+      return c.json(
+        { error: 'generation must be a generation name (e.g. generation-i) or a numeric id' },
+        400,
+      );
+    }
 
     const params: PokemonSearchParams = {
       name: name !== undefined && name.trim() !== '' ? name : undefined,
-      types: types.filter((t) => t.trim() !== ''),
-      generation: generation !== undefined && generation.trim() !== '' ? generation : undefined,
+      types: rawTypes,
+      generation: trimmedGeneration,
       limit,
       offset,
     };

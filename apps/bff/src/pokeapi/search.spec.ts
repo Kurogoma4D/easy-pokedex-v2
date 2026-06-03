@@ -296,6 +296,109 @@ describe('searchPokemon', () => {
     expect(result.nextOffset).toBeNull();
   });
 
+  it('excludes alternate-form ids from a type filter and does not 502', async () => {
+    // grass タイプのメンバーに別フォーム id (>= 10001) が混ざっても、既定フォーム id 空間に
+    // 正規化されるため species 取得で 404 を引かず、結果から別フォームが除外される。
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+
+      const typeMatch = /\/type\/([^/]+)\/?$/.exec(path);
+      if (typeMatch !== null) {
+        const members = FIXTURES.filter((f) => f.types.includes(typeMatch[1]!));
+        return jsonResponse({
+          id: 0,
+          name: typeMatch[1],
+          names: [],
+          pokemon: [
+            ...members.map((f) => ({
+              slot: 1,
+              pokemon: { name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` },
+            })),
+            // 別フォーム（例: メガフシギバナ相当）。species 取得は存在しない id で 404 になる。
+            { slot: 1, pokemon: { name: 'venusaur-mega', url: `${UPSTREAM}/pokemon/10033/` } },
+          ],
+        });
+      }
+
+      const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+      if (speciesMatch !== null) {
+        const id = Number(speciesMatch[1]);
+        if (!FIXTURES.some((f) => f.id === id)) {
+          return new Response('not found', { status: 404 });
+        }
+        return jsonResponse(speciesBody(byId(id)));
+      }
+
+      const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+      if (pokemonMatch !== null) {
+        const id = Number(pokemonMatch[1]);
+        if (!FIXTURES.some((f) => f.id === id)) {
+          return new Response('not found', { status: 404 });
+        }
+        return jsonResponse(pokemonBody(byId(id)));
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await searchPokemon(client, { types: ['grass'], limit: 20, offset: 0 });
+
+    // grass の既定フォームのみ（1/43/152）。別フォーム 10033 は除外される。
+    expect(result.results.map((r) => r.id)).toEqual([1, 43, 152]);
+    expect(result.results.map((r) => r.id)).not.toContain(10033);
+  });
+
+  it('keeps default-form matches for a type and generation intersection', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, {
+      types: ['grass', 'poison'],
+      generation: 'generation-i',
+      limit: 20,
+      offset: 0,
+    });
+
+    // grass+poison の gen-i は bulbasaur(1)/oddish(43) の既定フォーム。
+    expect(result.results.map((r) => r.id)).toEqual([1, 43]);
+  });
+
+  it('treats an unknown type as no matches instead of failing', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/type\/([^/]+)\/?$/.test(path)) {
+        return new Response('not found', { status: 404 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await searchPokemon(client, { types: ['notatype'], limit: 20, offset: 0 });
+
+    expect(result.results).toEqual([]);
+    expect(result.count).toBe(0);
+  });
+
+  it('treats an unknown generation as no matches instead of failing', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/generation\/([^/]+)\/?$/.test(path)) {
+        return new Response('not found', { status: 404 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await searchPokemon(client, {
+      generation: 'generation-zzz',
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.results).toEqual([]);
+    expect(result.count).toBe(0);
+  });
+
   it('caps in-flight upstream fetches at the configured concurrency', async () => {
     const base = makeFetchImpl();
     let inFlight = 0;

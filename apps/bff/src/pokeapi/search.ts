@@ -1,9 +1,12 @@
 import type { PokeApiClient, RequestOptions } from './client.js';
+import { PokeApiError } from './errors.js';
 import { extractIdFromResourceUrl, mapWithConcurrency } from './list.js';
 import { buildLocalizedName, selectImageUrl } from './localization.js';
 import type {
+  PokeApiGeneration,
   PokeApiPokemon,
   PokeApiPokemonSpecies,
+  PokeApiType,
   PokemonListItem,
   PokemonSearchParams,
   PokemonSearchResponse,
@@ -28,6 +31,19 @@ const NAME_ONLY_CANDIDATE_CAP = 1500;
 /** 上流の `/pokemon` 一覧を 1 リクエストで引くための十分大きな件数。全国図鑑の総数を上回る値。 */
 const FULL_LIST_LIMIT = 100_000;
 
+/**
+ * 別フォーム（メガ進化・地方フォーム等）の pokemon id はこの値以上に振られる（既定フォームは
+ * 全国図鑑番号と一致する 1〜1025）。`/type` のメンバーは pokemon id 空間（別フォームを含む）だが、
+ * `/generation` のメンバーと種取得は species id 空間（1〜1025）であり ID 空間が一致しない。
+ * 候補は既定フォーム（< この値）に正規化して単一の ID 空間に揃え、別フォーム id での species 取得が
+ * 上流 404 を招くこと、およびタイプ×世代の積集合が別フォームを取りこぼすことを防ぐ。
+ */
+const ALTERNATE_FORM_ID_THRESHOLD = 10_000;
+
+function isDefaultFormId(id: number): boolean {
+  return id < ALTERNATE_FORM_ID_THRESHOLD;
+}
+
 interface CandidateMaterial {
   readonly id: number;
   readonly pokemon: PokeApiPokemon;
@@ -37,6 +53,42 @@ interface CandidateMaterial {
 /** 部分一致用に大小文字・前後空白を正規化する。 */
 function normalize(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/** 上流 404 か（未知のリソース名はメンバー無しとして扱うための判定）。 */
+function isNotFound(error: unknown): boolean {
+  return error instanceof PokeApiError && error.kind === 'http' && error.status === 404;
+}
+
+/**
+ * 未知のタイプ名は上流が 404 を返す。検索では「該当無し」（空メンバー）として扱い、
+ * クライアントへ 404 を素通しさせない。404 以外（上流障害等）はそのまま伝播する。
+ */
+async function mapNotFoundToEmptyType(
+  promise: Promise<PokeApiType>,
+): Promise<{ readonly pokemon: PokeApiType['pokemon'] }> {
+  try {
+    return await promise;
+  } catch (error) {
+    if (isNotFound(error)) {
+      return { pokemon: [] };
+    }
+    throw error;
+  }
+}
+
+/** 未知の世代名も同様に「該当無し」（空メンバー）として扱う。 */
+async function mapNotFoundToEmptyGeneration(
+  promise: Promise<PokeApiGeneration>,
+): Promise<{ readonly pokemon_species: PokeApiGeneration['pokemon_species'] }> {
+  try {
+    return await promise;
+  } catch (error) {
+    if (isNotFound(error)) {
+      return { pokemon_species: [] };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -58,12 +110,22 @@ async function resolveCandidateIds(
 
   const typeNames = (params.types ?? []).map(normalize).filter((t) => t.length > 0);
   for (const typeName of typeNames) {
-    const type = await client.fetchType(typeName, options);
-    sets.push(new Set(type.pokemon.map((entry) => extractIdFromResourceUrl(entry.pokemon.url))));
+    const type = await mapNotFoundToEmptyType(client.fetchType(typeName, options));
+    // type のメンバーは pokemon id 空間（別フォーム含む）。species id 空間（世代・種取得）と
+    // 揃えるため、既定フォーム（全国図鑑番号）のみに正規化してから積集合に用いる。
+    sets.push(
+      new Set(
+        type.pokemon
+          .map((entry) => extractIdFromResourceUrl(entry.pokemon.url))
+          .filter(isDefaultFormId),
+      ),
+    );
   }
 
   if (params.generation !== undefined && normalize(params.generation).length > 0) {
-    const generation = await client.fetchGeneration(normalize(params.generation), options);
+    const generation = await mapNotFoundToEmptyGeneration(
+      client.fetchGeneration(normalize(params.generation), options),
+    );
     sets.push(
       new Set(generation.pokemon_species.map((entry) => extractIdFromResourceUrl(entry.url))),
     );
@@ -133,12 +195,9 @@ export async function searchPokemon(
     (params.types ?? []).some((t) => normalize(t).length > 0) ||
     (params.generation !== undefined && normalize(params.generation).length > 0);
 
-  // 名前のみの検索は候補が全件に広がるため上限で切り捨てる（上流負荷の上限）。
+  // 名前のみの検索は候補が全件に広がり候補 1 体ごとに上流取得が発生するため、候補数を
+  // NAME_ONLY_CANDIDATE_CAP で切り捨てて上流負荷の上限を保つ（超過分は走査対象から除外する）。
   if (hasNameFilter && !hasMembershipFilter && candidateIds.length > NAME_ONLY_CANDIDATE_CAP) {
-    console.warn(
-      `[search] name-only query "${nameQuery}" produced ${candidateIds.length} candidates; ` +
-        `capping upstream lookups at ${NAME_ONLY_CANDIDATE_CAP}.`,
-    );
     candidateIds = candidateIds.slice(0, NAME_ONLY_CANDIDATE_CAP);
   }
 
@@ -161,15 +220,21 @@ export async function searchPokemon(
   return buildResponse(results, total, params);
 }
 
-/** 候補 id 群の pokemon/species を同時実行数を抑えつつ取得し、入力順の素材配列にまとめる。 */
+/**
+ * 候補 id 群の pokemon/species を同時実行数を抑えつつ取得し、入力順の素材配列にまとめる。
+ *
+ * いずれかの取得が上流 404 を返した候補はスキップする（その 1 体の欠落で検索全体を 502 に
+ * 落とさない）。404 以外（上流障害等）はそのまま伝播し、従来どおり 502 へ写像させる。
+ */
 async function fetchMaterials(
   client: PokeApiClient,
   ids: readonly number[],
   options: RequestOptions | undefined,
   concurrency: number,
 ): Promise<CandidateMaterial[]> {
-  const pokemons = new Array<PokeApiPokemon>(ids.length);
-  const speciesList = new Array<PokeApiPokemonSpecies>(ids.length);
+  const pokemons = new Array<PokeApiPokemon | undefined>(ids.length);
+  const speciesList = new Array<PokeApiPokemonSpecies | undefined>(ids.length);
+  const dropped = new Array<boolean>(ids.length).fill(false);
 
   type Task =
     | { readonly kind: 'pokemon'; readonly index: number; readonly id: number }
@@ -181,20 +246,37 @@ async function fetchMaterials(
   ]);
 
   await mapWithConcurrency(tasks, concurrency, async (task) => {
-    if (task.kind === 'pokemon') {
-      pokemons[task.index] = await client.fetchPokemon(task.id, options);
-    } else {
-      // 世代の pokemon_species は種 id。default フォームでは pokemon id と一致するため、
-      // species 取得には pokemon の参照する species 名ではなく候補 id をそのまま用いる。
-      speciesList[task.index] = await client.fetchPokemonSpecies(task.id, options);
+    try {
+      if (task.kind === 'pokemon') {
+        pokemons[task.index] = await client.fetchPokemon(task.id, options);
+      } else {
+        // 世代の pokemon_species は種 id。default フォームでは pokemon id と一致するため、
+        // species 取得には pokemon の参照する species 名ではなく候補 id をそのまま用いる。
+        speciesList[task.index] = await client.fetchPokemonSpecies(task.id, options);
+      }
+    } catch (error) {
+      if (isNotFound(error)) {
+        dropped[task.index] = true;
+        return;
+      }
+      throw error;
     }
   });
 
-  return ids.map((id, index) => ({
-    id,
-    pokemon: pokemons[index]!,
-    species: speciesList[index]!,
-  }));
+  const materials: CandidateMaterial[] = [];
+  ids.forEach((id, index) => {
+    if (dropped[index]) {
+      return;
+    }
+    const pokemon = pokemons[index];
+    const species = speciesList[index];
+    // 一方が 404 で落ちていなくても、両方揃わない候補は素材化できないためスキップする。
+    if (pokemon === undefined || species === undefined) {
+      return;
+    }
+    materials.push({ id, pokemon, species });
+  });
+  return materials;
 }
 
 function buildResponse(
