@@ -142,15 +142,45 @@ describe('PokemonDetail', () => {
     expect(meter?.getAttribute('aria-label')).toBeTruthy();
   });
 
-  it('localizes names when the locale changes', async () => {
+  it('localizes the name, type chips, abilities and evolution names when the locale changes', async () => {
     const fixture = createFixture('1');
     await flushDetail(fixture);
     const el = fixture.nativeElement as HTMLElement;
 
+    // ja: 名前・タイプ・特性・進化チェーンの固有名詞がすべて日本語表記で出る。
+    expect(el.querySelector('.detail__name')?.textContent).toContain('フシギダネ');
+    expect(el.querySelector('.detail__types')?.textContent).toContain('くさ');
+    expect(el.querySelector('.detail__types')?.textContent).toContain('どく');
+    expect(el.querySelector('.abilities')?.textContent).toContain('しんりょく');
+    expect(el.querySelector('.abilities')?.textContent).toContain('ようりょくそ');
+    expect(el.querySelector('.evo')?.textContent).toContain('フシギソウ');
+    expect(el.querySelector('.evo')?.textContent).toContain('フシギバナ');
+
     TestBed.inject(LocaleService).setLocale('en');
     await render(fixture);
 
+    // en: 同じ固有名詞群が英語表記に切り替わる（UI 文言だけでなく API 由来の名前も追従する）。
     expect(el.querySelector('.detail__name')?.textContent).toContain('Bulbasaur');
+    expect(el.querySelector('.detail__types')?.textContent).toContain('Grass');
+    expect(el.querySelector('.detail__types')?.textContent).toContain('Poison');
+    expect(el.querySelector('.abilities')?.textContent).toContain('Overgrow');
+    expect(el.querySelector('.abilities')?.textContent).toContain('Chlorophyll');
+    expect(el.querySelector('.evo')?.textContent).toContain('Ivysaur');
+    expect(el.querySelector('.evo')?.textContent).toContain('Venusaur');
+
+    // UI 文言（見出し・戻るリンク）も同時に切り替わる。
+    expect(el.querySelector('.detail__back')?.textContent).toContain('Back to list');
+  });
+
+  it('restores a persisted locale so the detail renders in en on reload', async () => {
+    // 永続化済みロケールでマウントすると、初回描画から英語固有名詞で出る（リロード復元の検証）。
+    localStorage.setItem('easy-pokedex.locale', 'en');
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__name')?.textContent).toContain('Bulbasaur');
+    expect(el.querySelector('.detail__types')?.textContent).toContain('Grass');
   });
 
   it('shows a loading status before the response arrives', async () => {

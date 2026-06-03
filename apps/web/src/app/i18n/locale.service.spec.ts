@@ -47,6 +47,27 @@ describe('LocaleService', () => {
     expect(service.locale()).toBe('en');
   });
 
+  it('round-trips the selected locale across a fresh service instance', () => {
+    const service = createService();
+    service.setLocale('en');
+    TestBed.tick();
+    expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('en');
+
+    // 新しいインスタンス（= リロード相当）が永続値から復元する。
+    const restored = createService();
+    expect(restored.locale()).toBe('en');
+  });
+
+  it('reflects the selected locale on the <html lang> attribute', () => {
+    const service = createService();
+    TestBed.tick();
+    expect(document.documentElement.lang).toBe('ja');
+
+    service.setLocale('en');
+    TestBed.tick();
+    expect(document.documentElement.lang).toBe('en');
+  });
+
   it('ignores an invalid persisted value and falls back to default', () => {
     localStorage.setItem(LOCALE_STORAGE_KEY, 'fr');
     const service = createService();
