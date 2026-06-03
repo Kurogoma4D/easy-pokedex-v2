@@ -42,8 +42,11 @@ const ja = {
   'detail.abilities': 'とくせい',
   'detail.abilityHidden': 'かくれとくせい',
   'detail.evolution': 'しんか',
-  'detail.flavor': 'ずかんせつめい',
   'detail.back': 'いちらんへ',
+  'detail.loading': 'よみこみちゅう…',
+  'detail.error': 'ポケモンの よみこみに しっぱいしました。',
+  'detail.notFound': 'その ポケモンは みつかりませんでした。',
+  'detail.retry': 'もういちど',
 
   // ステータス名
   'stat.hp': 'HP',
@@ -96,8 +99,11 @@ const en: MessageDictionary = {
   'detail.abilities': 'Abilities',
   'detail.abilityHidden': 'Hidden',
   'detail.evolution': 'Evolution',
-  'detail.flavor': 'Pokédex entry',
   'detail.back': 'Back to list',
+  'detail.loading': 'Loading…',
+  'detail.error': 'Failed to load this Pokémon.',
+  'detail.notFound': 'That Pokémon could not be found.',
+  'detail.retry': 'Retry',
 
   // Stat names
   'stat.hp': 'HP',

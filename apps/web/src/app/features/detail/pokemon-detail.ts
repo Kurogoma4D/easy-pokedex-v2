@@ -1,19 +1,31 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
-import { MessageKey } from '../../i18n/messages';
 import { LocalizedName } from '../../i18n/localized-name';
+import { MessageKey } from '../../i18n/messages';
 import { Icon } from '../../shared/icon/icon';
-import { MOCK_DETAIL, MockEvolutionNode, MockStat } from '../mock/pokemon-mock-data';
+import { PokemonApiService } from '../list/pokemon-api.service';
 import { TypeChip } from '../shared/type-chip';
+import type { EvolutionNode } from './pokemon-detail.model';
 
 /** 種族値バーの上限。単一ステータスの取りうる上限に合わせて 0–100% を割り当てる。 */
 const STAT_MAX = 255;
 
-/** 進化チェーンのツリーを描画順の一次元配列へ平坦化する（分岐なしモック向けの直列化）。 */
-function flattenChain(root: MockEvolutionNode): readonly MockEvolutionNode[] {
-  const out: MockEvolutionNode[] = [];
-  const walk = (node: MockEvolutionNode): void => {
+/** ステータス識別子から表示ラベルのメッセージキーを引く。上流が未知の id を返しても識別子を出せるよう Map で扱う。 */
+const STAT_LABEL_KEYS = new Map<string, MessageKey>([
+  ['hp', 'stat.hp'],
+  ['attack', 'stat.attack'],
+  ['defense', 'stat.defense'],
+  ['special-attack', 'stat.special-attack'],
+  ['special-defense', 'stat.special-defense'],
+  ['speed', 'stat.speed'],
+]);
+
+/** 進化チェーンのツリーを描画順の一次元配列へ平坦化する（分岐は深さ優先で直列化）。 */
+function flattenChain(root: EvolutionNode): readonly EvolutionNode[] {
+  const out: EvolutionNode[] = [];
+  const walk = (node: EvolutionNode): void => {
     out.push(node);
     node.evolvesTo.forEach(walk);
   };
@@ -22,18 +34,22 @@ function flattenChain(root: MockEvolutionNode): readonly MockEvolutionNode[] {
 }
 
 interface StatRow {
-  readonly id: MockStat['id'];
-  readonly labelKey: MessageKey;
+  readonly id: string;
+  readonly label: string;
   readonly base: number;
   readonly percent: number;
 }
 
 /**
- * 詳細画面のモックアップ（FR-3）。
+ * 詳細画面（FR-3）。BFF の `/pokemon/:idOrName` を `httpResource` で取得して表示する。
  *
- * 図鑑番号・名前・スプライト・タイプ・ステータス（バー）・特性・進化チェーン・ずかん説明を
- * 1 画面に集約して表示する。データは静的モック（`MOCK_DETAIL`）で、BFF 集約レスポンスへの
- * 差し替えは機能 Issue（#13）が担う。
+ * ルートの `:id`（`withComponentInputBinding` で束縛）をキーに取得し、id が変わると自動で再取得する。
+ * 図鑑番号・名前・スプライト・タイプ・ステータス（バー）・特性・進化チェーンを 1 画面に集約する。
+ * 固有名詞（名前・タイプ名・特性名）は BFF が返す `LocalizedName` を `LocaleService` で選択ロケールへ
+ * 解決するため、言語切り替えに追従する。
+ *
+ * 取得状況に応じて状態を出し分ける。読み込み中はローディング表示、上流 404 は「見つからない」表示、
+ * その他の失敗（502 など）は汎用エラーと再試行ボタンを出す。
  */
 @Component({
   selector: 'app-pokemon-detail',
@@ -46,95 +62,103 @@ interface StatRow {
         {{ messages()['detail.back'] }}
       </a>
 
-      <header class="detail__head">
-        <span class="detail__dex">{{ dexNumber() }}</span>
-        <div class="detail__art">
-          @if (data.imageUrl) {
-            <img [src]="data.imageUrl" [alt]="name()" decoding="async" />
-          } @else {
-            <span class="detail__art-fallback" aria-hidden="true">?</span>
-          }
-        </div>
-        <h1 class="detail__name">{{ name() }}</h1>
-        <div class="detail__types">
-          @for (type of data.types; track type) {
-            <app-type-chip [type]="type" />
-          }
-        </div>
-        <dl class="detail__metrics">
-          <div>
-            <dt>{{ messages()['detail.height'] }}</dt>
-            <dd>{{ heightMeters() }} m</dd>
+      @if (isLoading()) {
+        <p class="detail__status detail__status--loading" role="status">
+          {{ messages()['detail.loading'] }}
+        </p>
+      } @else if (isError()) {
+        <p class="detail__status detail__status--error" role="alert">
+          {{ notFound() ? messages()['detail.notFound'] : messages()['detail.error'] }}
+          <button class="detail__retry" type="button" (click)="retry()">
+            {{ messages()['detail.retry'] }}
+          </button>
+        </p>
+      } @else if (data(); as detail) {
+        <header class="detail__head">
+          <span class="detail__dex">{{ dexNumber() }}</span>
+          <div class="detail__art">
+            @if (detail.imageUrl) {
+              <img [src]="detail.imageUrl" [alt]="name()" decoding="async" />
+            } @else {
+              <span class="detail__art-fallback" aria-hidden="true">?</span>
+            }
           </div>
-          <div>
-            <dt>{{ messages()['detail.weight'] }}</dt>
-            <dd>{{ weightKg() }} kg</dd>
+          <h1 class="detail__name">{{ name() }}</h1>
+          <div class="detail__types">
+            @for (type of detail.types; track type.id) {
+              <app-type-chip [type]="type.id" />
+            }
           </div>
-        </dl>
-      </header>
+          <dl class="detail__metrics">
+            <div>
+              <dt>{{ messages()['detail.height'] }}</dt>
+              <dd>{{ heightMeters() }} m</dd>
+            </div>
+            <div>
+              <dt>{{ messages()['detail.weight'] }}</dt>
+              <dd>{{ weightKg() }} kg</dd>
+            </div>
+          </dl>
+        </header>
 
-      <section class="detail__panel">
-        <h2 class="detail__heading">{{ messages()['detail.flavor'] }}</h2>
-        <p class="detail__flavor">{{ flavor() }}</p>
-      </section>
-
-      <section class="detail__panel">
-        <h2 class="detail__heading">{{ messages()['detail.stats'] }}</h2>
-        <ul class="stats" role="list">
-          @for (stat of stats(); track stat.id) {
-            <li class="stats__row">
-              <span class="stats__label">{{ messages()[stat.labelKey] }}</span>
-              <span class="stats__value">{{ stat.base }}</span>
-              <span
-                class="stats__bar"
-                role="meter"
-                [attr.aria-label]="messages()[stat.labelKey]"
-                [attr.aria-valuenow]="stat.base"
-                aria-valuemin="0"
-                [attr.aria-valuemax]="statMax"
-              >
-                <span class="stats__fill" [style.width.%]="stat.percent"></span>
-              </span>
-            </li>
-          }
-        </ul>
-        <p class="stats__total">{{ messages()['detail.statTotal'] }}: {{ statTotal() }}</p>
-      </section>
-
-      <section class="detail__panel">
-        <h2 class="detail__heading">{{ messages()['detail.abilities'] }}</h2>
-        <ul class="abilities" role="list">
-          @for (ability of data.abilities; track ability.id) {
-            <li class="abilities__item">
-              <span>{{ localize(ability.name) }}</span>
-              @if (ability.isHidden) {
-                <span class="abilities__hidden">{{ messages()['detail.abilityHidden'] }}</span>
-              }
-            </li>
-          }
-        </ul>
-      </section>
-
-      <section class="detail__panel">
-        <h2 class="detail__heading">{{ messages()['detail.evolution'] }}</h2>
-        <ol class="evo" role="list">
-          @for (node of evolution(); track node.id; let last = $last) {
-            <li class="evo__node">
-              <a class="evo__link" [routerLink]="['/detail', node.id]">
-                <span class="evo__art">
-                  @if (node.imageUrl) {
-                    <img [src]="node.imageUrl" [alt]="localize(node.name)" decoding="async" />
-                  }
+        <section class="detail__panel">
+          <h2 class="detail__heading">{{ messages()['detail.stats'] }}</h2>
+          <ul class="stats" role="list">
+            @for (stat of stats(); track stat.id) {
+              <li class="stats__row">
+                <span class="stats__label">{{ stat.label }}</span>
+                <span class="stats__value">{{ stat.base }}</span>
+                <span
+                  class="stats__bar"
+                  role="meter"
+                  [attr.aria-label]="stat.label"
+                  [attr.aria-valuenow]="stat.base"
+                  aria-valuemin="0"
+                  [attr.aria-valuemax]="statMax"
+                >
+                  <span class="stats__fill" [style.width.%]="stat.percent"></span>
                 </span>
-                <span class="evo__name">{{ localize(node.name) }}</span>
-              </a>
-              @if (!last) {
-                <span class="evo__arrow" aria-hidden="true">▸</span>
-              }
-            </li>
-          }
-        </ol>
-      </section>
+              </li>
+            }
+          </ul>
+          <p class="stats__total">{{ messages()['detail.statTotal'] }}: {{ statTotal() }}</p>
+        </section>
+
+        <section class="detail__panel">
+          <h2 class="detail__heading">{{ messages()['detail.abilities'] }}</h2>
+          <ul class="abilities" role="list">
+            @for (ability of detail.abilities; track ability.id) {
+              <li class="abilities__item">
+                <span>{{ localize(ability.name) }}</span>
+                @if (ability.isHidden) {
+                  <span class="abilities__hidden">{{ messages()['detail.abilityHidden'] }}</span>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section class="detail__panel">
+          <h2 class="detail__heading">{{ messages()['detail.evolution'] }}</h2>
+          <ol class="evo" role="list">
+            @for (node of evolution(); track node.id; let last = $last) {
+              <li class="evo__node">
+                <a class="evo__link" [routerLink]="['/detail', node.id]">
+                  <span class="evo__art">
+                    @if (node.imageUrl) {
+                      <img [src]="node.imageUrl" [alt]="localize(node.name)" decoding="async" />
+                    }
+                  </span>
+                  <span class="evo__name">{{ localize(node.name) }}</span>
+                </a>
+                @if (!last) {
+                  <span class="evo__arrow" aria-hidden="true">▸</span>
+                }
+              </li>
+            }
+          </ol>
+        </section>
+      }
     </article>
   `,
   styles: `
@@ -148,6 +172,8 @@ interface StatRow {
     .detail__dex,
     .detail__metrics dt,
     .detail__metrics dd,
+    .detail__status,
+    .detail__retry,
     .stats__label,
     .stats__value,
     .stats__total,
@@ -164,39 +190,73 @@ interface StatRow {
       color: var(--color-text);
       text-decoration: none;
     }
+    .detail__status {
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      text-align: center;
+      color: var(--color-text);
+    }
+    .detail__status--loading {
+      color: var(--color-text-muted);
+      animation: detail-blink 800ms steps(2, end) infinite;
+    }
+    @keyframes detail-blink {
+      50% {
+        opacity: 0.25;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .detail__status--loading {
+        animation: none;
+      }
+    }
+    .detail__head,
+    .detail__panel {
+      background-color: var(--color-surface-raised);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-panel);
+      box-shadow: var(--shadow-dot-sm);
+    }
     .detail__head {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: var(--space-2);
       padding: var(--space-4);
-      background-color: var(--color-surface-raised);
-      border: var(--border-width-chunky) solid var(--color-border);
-      border-radius: var(--radius-panel);
-      box-shadow: var(--shadow-dot-sm);
     }
     .detail__dex {
       align-self: flex-start;
       font-size: var(--font-size-display-md);
       color: var(--color-text-muted);
     }
-    .detail__art {
+    .detail__art,
+    .evo__art {
       display: flex;
       align-items: center;
       justify-content: center;
+      background-color: var(--color-screen);
+      border: var(--border-width-chunky) solid var(--color-border);
+      box-shadow: var(--shadow-screen-inset);
+    }
+    .detail__art {
       width: 12rem;
       max-width: 60vw;
       aspect-ratio: 1 / 1;
-      background-color: var(--color-screen);
-      border: var(--border-width-chunky) solid var(--color-border);
       border-radius: var(--radius-screen);
-      box-shadow: var(--shadow-screen-inset);
+    }
+    .detail__art img,
+    .evo__art img {
+      object-fit: contain;
+      image-rendering: pixelated;
     }
     .detail__art img {
       width: 84%;
       height: 84%;
-      object-fit: contain;
-      image-rendering: pixelated;
     }
     .detail__art-fallback {
       font-family: var(--font-display);
@@ -228,27 +288,23 @@ interface StatRow {
     }
     .detail__panel {
       padding: var(--space-3);
-      background-color: var(--color-surface-raised);
-      border: var(--border-width-chunky) solid var(--color-border);
-      border-radius: var(--radius-panel);
-      box-shadow: var(--shadow-dot-sm);
     }
     .detail__heading {
       margin: 0 0 var(--space-3);
       font-size: var(--font-size-display-md);
     }
-    .detail__flavor {
-      margin: 0;
-      font-size: var(--font-size-body-sm);
-    }
 
-    .stats {
+    .stats,
+    .abilities,
+    .evo {
       display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
       margin: 0;
       padding: 0;
       list-style: none;
+    }
+    .stats {
+      flex-direction: column;
+      gap: var(--space-2);
     }
     .stats__row {
       display: grid;
@@ -284,12 +340,8 @@ interface StatRow {
     }
 
     .abilities {
-      display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin: 0;
-      padding: 0;
-      list-style: none;
     }
     .abilities__item {
       display: flex;
@@ -308,13 +360,9 @@ interface StatRow {
     }
 
     .evo {
-      display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: var(--space-3);
-      margin: 0;
-      padding: 0;
-      list-style: none;
     }
     .evo__node {
       display: flex;
@@ -330,21 +378,14 @@ interface StatRow {
       color: var(--color-text);
     }
     .evo__art {
-      display: flex;
-      align-items: center;
-      justify-content: center;
       width: 5rem;
       height: 5rem;
-      background-color: var(--color-screen);
-      border: var(--border-width-chunky) solid var(--color-border-soft);
+      border-color: var(--color-border-soft);
       border-radius: var(--radius-chip);
-      box-shadow: var(--shadow-screen-inset);
     }
     .evo__art img {
       width: 80%;
       height: 80%;
-      object-fit: contain;
-      image-rendering: pixelated;
     }
     .evo__arrow {
       color: var(--color-text-muted);
@@ -353,6 +394,7 @@ interface StatRow {
 })
 export class PokemonDetail {
   private readonly localeService = inject(LocaleService);
+  private readonly api = inject(PokemonApiService);
 
   protected readonly messages = this.localeService.messages;
   protected readonly statMax = STAT_MAX;
@@ -360,38 +402,69 @@ export class PokemonDetail {
   /** ルートパラメータ `:id`。withComponentInputBinding で束縛される。 */
   readonly id = input<string>('');
 
-  // モックは単一のポケモン（フシギダネ）を表示する。id 連動の取得は機能 Issue が担う。
-  protected readonly data = MOCK_DETAIL;
+  private readonly resource = this.api.detailResource(this.id);
 
-  protected readonly name = computed(() => this.localeService.localizeName(this.data.name));
-  protected readonly flavor = computed(() => this.localeService.localizeName(this.data.flavorText));
-  protected readonly dexNumber = computed(() => `#${this.data.id.toString().padStart(3, '0')}`);
-  protected readonly heightMeters = computed(() => (this.data.height / 10).toFixed(1));
-  protected readonly weightKg = computed(() => (this.data.weight / 10).toFixed(1));
-  protected readonly statTotal = computed(() =>
-    this.data.stats.reduce((sum, stat) => sum + stat.base, 0),
+  protected readonly isLoading = this.resource.isLoading;
+  protected readonly isError = computed(() => this.resource.error() !== undefined);
+
+  /** 上流 404（未知の id/name）。それ以外の失敗（502 など）と区別してメッセージを出し分ける。 */
+  protected readonly notFound = computed(() => {
+    const error = this.resource.error();
+    return error instanceof HttpErrorResponse && error.status === 404;
+  });
+
+  protected readonly data = computed(() =>
+    this.resource.hasValue() ? this.resource.value() : undefined,
   );
-  protected readonly evolution = computed(() => flattenChain(this.data.evolutionChain));
 
-  private readonly statLabelKeys: Readonly<Record<MockStat['id'], MessageKey>> = {
-    hp: 'stat.hp',
-    attack: 'stat.attack',
-    defense: 'stat.defense',
-    'special-attack': 'stat.special-attack',
-    'special-defense': 'stat.special-defense',
-    speed: 'stat.speed',
-  };
+  protected readonly name = computed(() => {
+    const detail = this.data();
+    return detail ? this.localeService.localizeName(detail.name) : '';
+  });
+  protected readonly dexNumber = computed(() => {
+    const detail = this.data();
+    return detail ? `#${detail.id.toString().padStart(3, '0')}` : '';
+  });
+  protected readonly heightMeters = computed(() => {
+    const detail = this.data();
+    return detail ? (detail.height / 10).toFixed(1) : '';
+  });
+  protected readonly weightKg = computed(() => {
+    const detail = this.data();
+    return detail ? (detail.weight / 10).toFixed(1) : '';
+  });
+  protected readonly statTotal = computed(() => {
+    const detail = this.data();
+    return detail ? detail.stats.reduce((sum, stat) => sum + stat.base, 0) : 0;
+  });
+  protected readonly evolution = computed<readonly EvolutionNode[]>(() => {
+    const detail = this.data();
+    return detail ? flattenChain(detail.evolutionChain) : [];
+  });
 
-  protected readonly stats = computed<readonly StatRow[]>(() =>
-    this.data.stats.map((stat) => ({
-      id: stat.id,
-      labelKey: this.statLabelKeys[stat.id],
-      base: stat.base,
-      percent: Math.min(100, (stat.base / STAT_MAX) * 100),
-    })),
-  );
+  protected readonly stats = computed<readonly StatRow[]>(() => {
+    const detail = this.data();
+    if (!detail) {
+      return [];
+    }
+    const messages = this.messages();
+    return detail.stats.map((stat) => {
+      const labelKey = STAT_LABEL_KEYS.get(stat.id);
+      return {
+        id: stat.id,
+        label: labelKey ? messages[labelKey] : stat.id,
+        base: stat.base,
+        percent: Math.min(100, (stat.base / STAT_MAX) * 100),
+      };
+    });
+  });
 
   protected localize(name: LocalizedName): string {
     return this.localeService.localizeName(name);
+  }
+
+  /** エラー後に同じ id を取得し直す。 */
+  protected retry(): void {
+    this.resource.reload();
   }
 }
