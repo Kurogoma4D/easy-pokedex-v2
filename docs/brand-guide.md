@@ -49,15 +49,17 @@
 ロゴは「ドット調の Poké Ball マーク」＋「ピクセル表示フォントのワードマーク」を横並びにした構成です。アプリ内のロゴは `app-logo` コンポーネント（`apps/web/src/app/shared/icon/logo.ts`）として実装され、マークをインライン SVG で内包し、ワードマークを `--font-display` で表示します。
 
 - マーク単体（参照用）: `apps/web/public/icons/logo-mark.svg` — 16×16 のドットグリッドで描いた Poké Ball マーク（ベゼルなし）。
-- ワードマーク文言: `app-logo` の `label` 入力で渡す。アプリでは i18n の `app.title`（"Easy Pokédex"）を表示する。
+- ワードマーク文言: `app-logo` の `label` 入力で渡す。ヘッダーは選択ロケールの `app.title`（`messages()['app.title']`）を渡すため、ワードマークはロケール依存で表示される（en: "Easy Pokédex" / ja: "イージーポケモン図鑑"。`apps/web/src/app/i18n/messages.ts`）。
 
 ### マークの構造
 
-`logo-mark.svg` / `logo.ts` の SVG は次の塗り分けで構成されます（クラス名はトークンを参照）。
+`logo.ts` の SVG は次の 3 塗り分けで構成されます（クラス名はトークンを参照）。
 
 - `.logo__ink` / `ink`: `--lcd-3`（最暗のドットインク）— 外周リングと赤道帯。
 - `.logo__lit` / `lit`: `--lcd-0`（点灯パネル）— 上下半球の明部。
 - `.logo__led` / `led`: `--led-power`（赤い電源 LED）— 中央ボタンのコア。
+
+スタンドアロンの SVG（`logo-mark.svg` / `app-icon.svg`）は上記 3 塗りに加え、`.mid`: `--lcd-1`（中間グリーン）を薄いドットの陰影として持ちます（計 4 塗り）。
 
 ### クリアスペース（余白）
 
@@ -90,7 +92,7 @@
 
 ## 3. カラールール
 
-色は `tokens.css` の CSS カスタムプロパティを介してのみ使用します。コンポーネントに生のカラーコードを書かず、必ずトークン名を参照します（例: タイプチップは `type-style.ts` が `--type-*` / `--type-*-ink` を引く）。
+色は `tokens.css` の CSS カスタムプロパティを介してのみ使用します。コンポーネントに生のカラーコードを書かず、必ずトークン名を参照します（例: タイプチップは `type-style.ts`（`apps/web/src/app/features/shared/type-style.ts`）が `--type-*` / `--type-*-ink` を引く）。
 
 ### 3.1 モノクロ液晶（LCD）ベース
 
