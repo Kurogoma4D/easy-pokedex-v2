@@ -2,7 +2,11 @@ import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from '../pokeapi/index.js';
-import type { PokemonDetail, PokemonListResponse } from '../pokeapi/index.js';
+import type {
+  PokemonDetail,
+  PokemonListResponse,
+  PokemonSearchResponse,
+} from '../pokeapi/index.js';
 import { createPokemonRoutes } from './pokemon.js';
 
 const UPSTREAM = 'https://upstream.test/api/v2';
@@ -304,5 +308,223 @@ describe('GET /pokemon/:idOrName', () => {
 
     const res = await app.request('/pokemon/pikachu');
     expect(res.status).toBe(502);
+  });
+});
+
+interface SearchFixture {
+  readonly id: number;
+  readonly name: string;
+  readonly jaName: string;
+  readonly enName: string;
+  readonly types: readonly string[];
+  readonly generation: string;
+}
+
+const SEARCH_FIXTURES: readonly SearchFixture[] = [
+  {
+    id: 1,
+    name: 'bulbasaur',
+    jaName: 'フシギダネ',
+    enName: 'Bulbasaur',
+    types: ['grass', 'poison'],
+    generation: 'generation-i',
+  },
+  {
+    id: 4,
+    name: 'charmander',
+    jaName: 'ヒトカゲ',
+    enName: 'Charmander',
+    types: ['fire'],
+    generation: 'generation-i',
+  },
+  {
+    id: 43,
+    name: 'oddish',
+    jaName: 'ナゾノクサ',
+    enName: 'Oddish',
+    types: ['grass', 'poison'],
+    generation: 'generation-i',
+  },
+  {
+    id: 152,
+    name: 'chikorita',
+    jaName: 'チコリータ',
+    enName: 'Chikorita',
+    types: ['grass'],
+    generation: 'generation-ii',
+  },
+];
+
+function searchFixture(id: number): SearchFixture {
+  const f = SEARCH_FIXTURES.find((x) => x.id === id);
+  if (f === undefined) throw new Error(`no fixture for ${id}`);
+  return f;
+}
+
+function makeSearchFetchImpl() {
+  return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+    const path = new URL(String(input)).pathname;
+
+    const typeMatch = /\/type\/([^/]+)\/?$/.exec(path);
+    if (typeMatch !== null) {
+      const members = SEARCH_FIXTURES.filter((f) => f.types.includes(typeMatch[1]!));
+      return jsonResponse({
+        id: 0,
+        name: typeMatch[1],
+        names: [],
+        pokemon: members.map((f) => ({
+          slot: 1,
+          pokemon: { name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` },
+        })),
+      });
+    }
+
+    const genMatch = /\/generation\/([^/]+)\/?$/.exec(path);
+    if (genMatch !== null) {
+      const members = SEARCH_FIXTURES.filter((f) => f.generation === genMatch[1]);
+      return jsonResponse({
+        id: 0,
+        name: genMatch[1],
+        pokemon_species: members.map((f) => ({
+          name: f.name,
+          url: `${UPSTREAM}/pokemon-species/${f.id}/`,
+        })),
+      });
+    }
+
+    if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+      return jsonResponse({
+        count: SEARCH_FIXTURES.length,
+        next: null,
+        previous: null,
+        results: SEARCH_FIXTURES.map((f) => ({
+          name: f.name,
+          url: `${UPSTREAM}/pokemon/${f.id}/`,
+        })),
+      });
+    }
+
+    const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+    if (speciesMatch !== null) {
+      const f = searchFixture(Number(speciesMatch[1]));
+      return jsonResponse({
+        id: f.id,
+        name: f.name,
+        names: [
+          { name: f.jaName, language: { name: 'ja-Hrkt', url: '' } },
+          { name: f.enName, language: { name: 'en', url: '' } },
+        ],
+        flavor_text_entries: [],
+        generation: { name: f.generation, url: '' },
+        evolution_chain: { url: '' },
+        is_legendary: false,
+        is_mythical: false,
+      });
+    }
+
+    const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+    if (pokemonMatch !== null) {
+      const f = searchFixture(Number(pokemonMatch[1]));
+      return jsonResponse({
+        id: f.id,
+        name: f.name,
+        types: f.types.map((name, index) => ({ slot: index + 1, type: { name, url: '' } })),
+        sprites: {
+          front_default: `https://img.test/${f.id}.png`,
+          front_shiny: null,
+          other: { 'official-artwork': { front_default: `https://img.test/art/${f.id}.png` } },
+        },
+        species: { name: f.name, url: `${UPSTREAM}/pokemon-species/${f.id}/` },
+      });
+    }
+
+    return new Response('not found', { status: 404 });
+  });
+}
+
+describe('GET /pokemon/search', () => {
+  it('is not shadowed by the dynamic /:idOrName route', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?name=bulba');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PokemonSearchResponse;
+    expect(body.results.map((r) => r.id)).toEqual([1]);
+  });
+
+  it('filters by name (ja) and returns list-shaped items', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?name=ヒトカゲ');
+    const body = (await res.json()) as PokemonSearchResponse;
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0]?.id).toBe(4);
+    expect(body.results[0]?.name).toEqual({ ja: 'ヒトカゲ', en: 'Charmander' });
+    expect(body.results[0]?.types).toEqual(['fire']);
+  });
+
+  it('applies multiple type filters with AND semantics', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?type=grass&type=poison');
+    const body = (await res.json()) as PokemonSearchResponse;
+    expect(body.results.map((r) => r.id)).toEqual([1, 43]);
+  });
+
+  it('combines name, type and generation filters', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?name=sau&type=grass&generation=generation-i');
+    const body = (await res.json()) as PokemonSearchResponse;
+    expect(body.results.map((r) => r.id)).toEqual([1]);
+  });
+
+  it('rejects invalid pagination params with 400', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    expect((await app.request('/pokemon/search?limit=0')).status).toBe(400);
+    expect((await app.request('/pokemon/search?offset=abc')).status).toBe(400);
+  });
+
+  it('maps an upstream 5xx to a 502 response', async () => {
+    const fetchImpl = vi.fn(async () => new Response('boom', { status: 500 }));
+    const app = makeApp(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?type=grass');
+    expect(res.status).toBe(502);
+  });
+
+  it('treats an unknown type as empty results with 200, not 404', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/type\/([^/]+)\/?$/.test(path)) {
+        return new Response('not found', { status: 404 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const app = makeApp(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?type=notatype');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PokemonSearchResponse;
+    expect(body.results).toEqual([]);
+    expect(body.count).toBe(0);
+  });
+
+  it('rejects too many type params with 400', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const query = ['grass', 'poison', 'fire', 'water', 'electric', 'ice']
+      .map((t) => `type=${t}`)
+      .join('&');
+    const res = await app.request(`/pokemon/search?${query}`);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed generation param with 400', async () => {
+    const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const res = await app.request('/pokemon/search?generation=not a generation');
+    expect(res.status).toBe(400);
   });
 });

@@ -154,6 +154,16 @@ export interface PokeApiAbility {
 }
 
 /**
+ * `/generation/{id|name}` のレスポンス。世代に属する種一覧（`pokemon_species`）を
+ * メンバー集合として用い、世代フィルタの候補を上流の 1 リクエストで得る。
+ */
+export interface PokeApiGeneration {
+  readonly id: number;
+  readonly name: string;
+  readonly pokemon_species: readonly PokeApiNamedResource[];
+}
+
+/**
  * BFF が整形して返す詳細 DTO（FR-3 / FR-4 / FR-5）。pokemon / species / evolution-chain と
  * type / ability の多言語名を集約し、画面が必要とする形だけを 1 レスポンスにまとめる。
  */
@@ -219,4 +229,38 @@ export interface PokemonDetail {
   readonly abilities: readonly PokemonAbilityDetail[];
   /** 進化チェーンの根。単一進化（進化なし）でも 1 ノードのツリーとして返す。 */
   readonly evolutionChain: EvolutionNode;
+}
+
+/**
+ * 検索・フィルタの条件（FR-2 / FR-5）。すべて任意で、指定されたものを AND で組み合わせる。
+ * 検索はクライアントに一覧を渡して絞り込むのではなく BFF 側で完結させる（spec 10. Open Questions）。
+ */
+export interface PokemonSearchParams {
+  /** 名前の部分一致クエリ。ja/en どちらの表記でもヒットさせる。空・未指定なら名前で絞り込まない。 */
+  readonly name?: string;
+  /** タイプ識別子（英語、例: `grass`）。複数指定時はすべてのタイプを持つものに絞る（AND）。 */
+  readonly types?: readonly string[];
+  /** 世代識別子（例: `generation-i`）。指定時はその世代の種に絞る。 */
+  readonly generation?: string;
+  /** 返却件数の上限。 */
+  readonly limit: number;
+  /** 絞り込み後の結果に対するオフセット。 */
+  readonly offset: number;
+}
+
+/**
+ * 検索エンドポイントのレスポンス。1 要素の形は一覧（`PokemonListItem`）と揃え、
+ * フロントが一覧と検索で同じ描画を使えるようにする。ページネーションは絞り込み後の
+ * 結果集合に対して行う。
+ */
+export interface PokemonSearchResponse {
+  /** 絞り込み後の総件数（ページング前）。 */
+  readonly count: number;
+  /** 今回返した範囲の先頭オフセット。 */
+  readonly offset: number;
+  /** 今回返した範囲の要求件数。 */
+  readonly limit: number;
+  /** 次ページの offset。これ以上無い場合は null。 */
+  readonly nextOffset: number | null;
+  readonly results: readonly PokemonListItem[];
 }
