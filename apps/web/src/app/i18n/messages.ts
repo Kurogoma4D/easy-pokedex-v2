@@ -12,7 +12,6 @@ const ja = {
   'locale.ja': '日本語',
   'locale.en': 'English',
   'a11y.localeSwitch': '言語の切り替え',
-  'a11y.searchIcon': 'けんさく',
 
   // 一覧画面（モックアップ）
   'list.title': 'ずかん',
@@ -64,7 +63,6 @@ const en: MessageDictionary = {
   'locale.ja': '日本語',
   'locale.en': 'English',
   'a11y.localeSwitch': 'Switch language',
-  'a11y.searchIcon': 'Search',
 
   // List screen (mockup)
   'list.title': 'POKÉDEX',
