@@ -34,7 +34,6 @@ body {
     8px 8px,
     100% 100%;
   background-attachment: fixed;
-  -webkit-font-smoothing: none; /* keep pixel edges crisp */
   text-rendering: optimizeLegibility;
 }
 
@@ -53,13 +52,13 @@ h6 {
 }
 
 h1 {
-  font-size: var(--font-size-display-lg);
+  font-size: var(--font-size-display-xl);
 }
 h2 {
-  font-size: var(--font-size-display-md);
+  font-size: var(--font-size-display-lg);
 }
 h3 {
-  font-size: var(--font-size-display-sm);
+  font-size: var(--font-size-display-md);
 }
 
 p {

@@ -54,15 +54,16 @@
   --color-on-type-dark: #ffffff;
 
   /* ---- Color: per-type Pokémon accents -----------------------------------
-   * `--type-*` is the chip fill; `--type-*-ink` is an AA-legible text color for
-   * that fill (verified >= 4.5:1 for normal text).
+   * `--type-*` is the chip fill; `--type-*-ink` is a paired text color chosen
+   * (dark or white per fill) so every fill+ink pair reaches WCAG AA for normal
+   * text. Each of the 18 pairs computes >= 4.5:1.
    */
   --type-normal: #9099a1;
-  --type-normal-ink: #ffffff;
+  --type-normal-ink: #1f2937;
   --type-fire: #ff9d54;
   --type-fire-ink: #3a1b00;
   --type-water: #4d90d5;
-  --type-water-ink: #ffffff;
+  --type-water-ink: #06223f;
   --type-grass: #63bb5b;
   --type-grass-ink: #0c2c08;
   --type-electric: #f3d23b;
@@ -72,7 +73,7 @@
   --type-fighting: #ce4069;
   --type-fighting-ink: #ffffff;
   --type-poison: #ab6ac8;
-  --type-poison-ink: #ffffff;
+  --type-poison-ink: #2a0a3a;
   --type-ground: #d97746;
   --type-ground-ink: #2b0e00;
   --type-flying: #8fa8dd;
@@ -90,7 +91,7 @@
   --type-dark: #5a5366;
   --type-dark-ink: #ffffff;
   --type-steel: #5a8ea1;
-  --type-steel-ink: #ffffff;
+  --type-steel-ink: #04222b;
   --type-fairy: #ec8fe6;
   --type-fairy-ink: #3a0036;
 
