@@ -349,6 +349,51 @@ describe('searchPokemon', () => {
     expect(result.results.map((r) => r.id)).not.toContain(10033);
   });
 
+  it('excludes alternate-form ids from a name-only full-list search without fetching them', async () => {
+    // タイプ・世代が無い名前のみの検索は `/pokemon` 全件を候補にする。一覧に別フォーム id
+    // (>= 10000) が混ざっても既定フォームのみへ正規化されるため、別フォームの pokemon/species は
+    // 取得されず、候補上限の枠も浪費しない。
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+
+      if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+        return jsonResponse({
+          count: FIXTURES.length + 1,
+          next: null,
+          previous: null,
+          results: [
+            ...FIXTURES.map((f) => ({ name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` })),
+            // 別フォーム（例: メガフシギバナ相当）。species 取得は存在しない id で 404 になる。
+            { name: 'venusaur-mega', url: `${UPSTREAM}/pokemon/10033/` },
+          ],
+        });
+      }
+
+      const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+      if (speciesMatch !== null) {
+        return jsonResponse(speciesBody(byId(Number(speciesMatch[1]))));
+      }
+
+      const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+      if (pokemonMatch !== null) {
+        return jsonResponse(pokemonBody(byId(Number(pokemonMatch[1]))));
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await searchPokemon(client, { name: 'a', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).not.toContain(10033);
+    // 別フォーム id の pokemon/species は候補に乗らないため取得されない。
+    const fetchedAltForm = fetchImpl.mock.calls.some((call) => {
+      const p = new URL(String(call[0])).pathname;
+      return /\/pokemon\/10033\/?$/.test(p) || /\/pokemon-species\/10033\/?$/.test(p);
+    });
+    expect(fetchedAltForm).toBe(false);
+  });
+
   it('keeps default-form matches for a type and generation intersection', async () => {
     const client = makeClient(makeFetchImpl());
 

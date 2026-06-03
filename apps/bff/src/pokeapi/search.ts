@@ -133,7 +133,10 @@ async function resolveCandidateIds(
 
   if (sets.length === 0) {
     const list = await client.fetchPokemonList({ limit: FULL_LIST_LIMIT, offset: 0 }, options);
-    return list.results.map((entry) => extractIdFromResourceUrl(entry.url));
+    // `/pokemon` 一覧は別フォーム（id >= ALTERNATE_FORM_ID_THRESHOLD）を含む。別フォーム id での
+    // species 取得は上流 404 で後段の 404 ガードに落ちるため候補としては無意味で、
+    // NAME_ONLY_CANDIDATE_CAP の枠を浪費する。タイプ集合の正規化と同様に既定フォームのみへ揃える。
+    return list.results.map((entry) => extractIdFromResourceUrl(entry.url)).filter(isDefaultFormId);
   }
 
   // 最小の集合を基準に積集合を取り、走査回数を抑える。
