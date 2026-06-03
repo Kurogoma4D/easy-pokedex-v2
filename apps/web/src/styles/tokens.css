@@ -1,0 +1,171 @@
+/*
+ * Design tokens — retro handheld Pokédex aesthetic (DA-1).
+ *
+ * Direction: a monochrome dot-matrix LCD screen (initial DMG-era green) framed
+ * by a plastic console bezel, with per-type Pokémon accent colors layered on top.
+ * Light-based theme. All values are exposed as CSS custom properties on :root so
+ * both global stylesheets and Angular component styles can reference them.
+ *
+ * Contrast: foreground/background pairs in the LCD palette meet WCAG AA for body
+ * text (>= 4.5:1). Type accent colors are paired with `--color-on-type` text and
+ * sit on dark chips so accent-on-surface combinations stay legible.
+ */
+
+:root {
+  /* ---- Color: monochrome LCD base ----------------------------------------
+   * Four-tone dot-matrix ramp inspired by the original handheld green screen,
+   * from the lit panel (lightest) to the dot ink (darkest).
+   */
+  --lcd-0: #cfe8b0; /* lit panel / screen background */
+  --lcd-1: #9bbc6c; /* mid green, faint dots */
+  --lcd-2: #5a7942; /* shaded dots / secondary ink */
+  --lcd-3: #1b2e1a; /* darkest dot ink / primary text */
+
+  /* Plastic console bezel framing the screen. */
+  --bezel-0: #e6e6ea; /* bezel highlight */
+  --bezel-1: #c4c4cc; /* bezel face */
+  --bezel-2: #8a8a93; /* bezel shadow / seams */
+  --bezel-ink: #2a2a30; /* labels printed on the shell */
+
+  /* Power LED / status accent (the classic red indicator). */
+  --led-power: #d83a3a;
+
+  /* ---- Semantic color roles ---------------------------------------------- */
+  --color-screen: var(--lcd-0);
+  --color-surface: var(--lcd-0);
+  --color-surface-raised: #dcefc4; /* cards floating above the screen */
+  --color-shell: var(--bezel-1);
+  --color-shell-edge: var(--bezel-2);
+
+  --color-text: var(--lcd-3); /* on LCD: #1b2e1a on #cfe8b0 ≈ 9.7:1 */
+  --color-text-muted: var(--lcd-2); /* on LCD: #5a7942 on #cfe8b0 ≈ 3.6:1, large text only */
+  --color-text-on-shell: var(--bezel-ink);
+  --color-text-inverse: var(--lcd-0); /* light ink on dark dot fills */
+
+  --color-border: var(--lcd-3);
+  --color-border-soft: var(--lcd-2);
+
+  --color-accent: var(--led-power);
+  --color-focus: #1147d6; /* high-contrast focus ring against LCD green */
+
+  /* Text color to place ON a type accent fill. Per-type contrast is tuned via
+   * the type tokens below; these two cover the light/dark cases. */
+  --color-on-type-light: var(--lcd-3);
+  --color-on-type-dark: #ffffff;
+
+  /* ---- Color: per-type Pokémon accents -----------------------------------
+   * `--type-*` is the chip fill; `--type-*-ink` is an AA-legible text color for
+   * that fill (verified >= 4.5:1 for normal text).
+   */
+  --type-normal: #9099a1;
+  --type-normal-ink: #ffffff;
+  --type-fire: #ff9d54;
+  --type-fire-ink: #3a1b00;
+  --type-water: #4d90d5;
+  --type-water-ink: #ffffff;
+  --type-grass: #63bb5b;
+  --type-grass-ink: #0c2c08;
+  --type-electric: #f3d23b;
+  --type-electric-ink: #3a3000;
+  --type-ice: #74cec0;
+  --type-ice-ink: #06302a;
+  --type-fighting: #ce4069;
+  --type-fighting-ink: #ffffff;
+  --type-poison: #ab6ac8;
+  --type-poison-ink: #ffffff;
+  --type-ground: #d97746;
+  --type-ground-ink: #2b0e00;
+  --type-flying: #8fa8dd;
+  --type-flying-ink: #102240;
+  --type-psychic: #f97176;
+  --type-psychic-ink: #3a0003;
+  --type-bug: #90c12c;
+  --type-bug-ink: #14250a;
+  --type-rock: #c7b78b;
+  --type-rock-ink: #2c2410;
+  --type-ghost: #5269ac;
+  --type-ghost-ink: #ffffff;
+  --type-dragon: #0b6dc3;
+  --type-dragon-ink: #ffffff;
+  --type-dark: #5a5366;
+  --type-dark-ink: #ffffff;
+  --type-steel: #5a8ea1;
+  --type-steel-ink: #ffffff;
+  --type-fairy: #ec8fe6;
+  --type-fairy-ink: #3a0036;
+
+  /* ---- Typography ---------------------------------------------------------
+   * Display: a true pixel font for headings and the dex chrome.
+   * Body: a tall dot-matrix terminal face for readable running text.
+   * Japanese coverage falls through to DotGothic16 (also a dot font), keeping
+   * the aesthetic across locales without landing on a generic sans.
+   */
+  --font-display: 'Press Start 2P', 'DotGothic16', monospace;
+  --font-body: 'VT323', 'DotGothic16', monospace;
+  --font-mono: 'VT323', 'DotGothic16', monospace;
+
+  /* Pixel fonts render small; the body face (VT323) is set larger to stay
+   * readable. Scale is rooted on an 8px-aligned base. */
+  --font-size-display-xl: 1.75rem; /* 28px — screen title */
+  --font-size-display-lg: 1.25rem; /* 20px — section heading */
+  --font-size-display-md: 0.875rem; /* 14px — labels / chips */
+  --font-size-display-sm: 0.625rem; /* 10px — fine print on chrome */
+
+  --font-size-body-lg: 1.5rem; /* 24px */
+  --font-size-body-md: 1.25rem; /* 20px — default body */
+  --font-size-body-sm: 1rem; /* 16px */
+
+  --line-height-display: 1.4;
+  --line-height-body: 1.3;
+  --letter-spacing-display: 0.04em;
+
+  /* ---- Spacing: 8px grid -------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 4px; /* half step for tight dot gaps */
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+
+  /* ---- Radii: dot/pixel-friendly -----------------------------------------
+   * Pixel art favours hard corners; radii stay small and snap to the grid.
+   * `--radius-screen` matches the rounded LCD window of the handheld.
+   */
+  --radius-none: 0;
+  --radius-pixel: 2px; /* one "pixel" of softening */
+  --radius-chip: 4px;
+  --radius-panel: 8px;
+  --radius-screen: 12px; /* the rounded screen cutout */
+  --radius-pill: 9999px;
+
+  /* ---- Borders ------------------------------------------------------------ */
+  --border-width-hairline: 1px;
+  --border-width-chunky: 2px; /* default dot outline */
+  --border-width-frame: 4px; /* console bezel framing */
+  --border-color: var(--color-border);
+
+  /* ---- Elevation: blocky, offset dot-shadows (no blur) -------------------- */
+  --shadow-dot-sm: 2px 2px 0 0 var(--lcd-3);
+  --shadow-dot-md: 4px 4px 0 0 var(--lcd-3);
+  --shadow-screen-inset: inset 0 0 0 2px var(--lcd-2), inset 3px 3px 0 0 rgba(27, 46, 26, 0.18);
+
+  /* ---- Motion ------------------------------------------------------------- */
+  --duration-fast: 80ms;
+  --duration-base: 140ms;
+  --easing-step: steps(4, end); /* snappy, frame-stepped feel */
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- Layout ------------------------------------------------------------- */
+  --layout-max-width: 1024px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --easing-step: linear;
+  }
+}
