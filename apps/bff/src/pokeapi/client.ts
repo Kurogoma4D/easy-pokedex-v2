@@ -4,6 +4,7 @@ import { fetchJson } from './fetcher.js';
 import type {
   PokeApiAbility,
   PokeApiEvolutionChain,
+  PokeApiGeneration,
   PokeApiPokemon,
   PokeApiPokemonSpecies,
   PokeApiResourceList,
@@ -200,6 +201,10 @@ export class PokeApiClient {
 
   fetchAbility(idOrName: string | number, options?: RequestOptions): Promise<PokeApiAbility> {
     return this.fetchResource<PokeApiAbility>(`ability/${idOrName}`, undefined, options);
+  }
+
+  fetchGeneration(idOrName: string | number, options?: RequestOptions): Promise<PokeApiGeneration> {
+    return this.fetchResource<PokeApiGeneration>(`generation/${idOrName}`, undefined, options);
   }
 
   fetchPokemonList(

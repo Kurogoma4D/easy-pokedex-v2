@@ -1,0 +1,324 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { PokeApiClient } from './client.js';
+import { searchPokemon } from './search.js';
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+const UPSTREAM = 'https://upstream.test/api/v2';
+
+interface Fixture {
+  readonly id: number;
+  readonly name: string;
+  readonly jaName: string;
+  readonly enName: string;
+  readonly types: readonly string[];
+  readonly generation: string;
+}
+
+/** 名前・タイプ・世代の交差を確かめられる小さな図鑑。 */
+const FIXTURES: readonly Fixture[] = [
+  {
+    id: 1,
+    name: 'bulbasaur',
+    jaName: 'フシギダネ',
+    enName: 'Bulbasaur',
+    types: ['grass', 'poison'],
+    generation: 'generation-i',
+  },
+  {
+    id: 4,
+    name: 'charmander',
+    jaName: 'ヒトカゲ',
+    enName: 'Charmander',
+    types: ['fire'],
+    generation: 'generation-i',
+  },
+  {
+    id: 7,
+    name: 'squirtle',
+    jaName: 'ゼニガメ',
+    enName: 'Squirtle',
+    types: ['water'],
+    generation: 'generation-i',
+  },
+  {
+    id: 43,
+    name: 'oddish',
+    jaName: 'ナゾノクサ',
+    enName: 'Oddish',
+    types: ['grass', 'poison'],
+    generation: 'generation-i',
+  },
+  {
+    id: 152,
+    name: 'chikorita',
+    jaName: 'チコリータ',
+    enName: 'Chikorita',
+    types: ['grass'],
+    generation: 'generation-ii',
+  },
+];
+
+function byId(id: number): Fixture {
+  const f = FIXTURES.find((x) => x.id === id);
+  if (f === undefined) throw new Error(`no fixture for ${id}`);
+  return f;
+}
+
+function pokemonBody(f: Fixture): unknown {
+  return {
+    id: f.id,
+    name: f.name,
+    types: f.types.map((name, index) => ({ slot: index + 1, type: { name, url: '' } })),
+    sprites: {
+      front_default: `https://img.test/${f.id}.png`,
+      front_shiny: null,
+      other: { 'official-artwork': { front_default: `https://img.test/art/${f.id}.png` } },
+    },
+    species: { name: f.name, url: `${UPSTREAM}/pokemon-species/${f.id}/` },
+  };
+}
+
+function speciesBody(f: Fixture): unknown {
+  return {
+    id: f.id,
+    name: f.name,
+    names: [
+      { name: f.jaName, language: { name: 'ja-Hrkt', url: '' } },
+      { name: f.enName, language: { name: 'en', url: '' } },
+    ],
+    flavor_text_entries: [],
+    generation: { name: f.generation, url: '' },
+    evolution_chain: { url: '' },
+    is_legendary: false,
+    is_mythical: false,
+  };
+}
+
+function makeFetchImpl() {
+  return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+    const url = new URL(String(input));
+    const path = url.pathname;
+
+    const typeMatch = /\/type\/([^/]+)\/?$/.exec(path);
+    if (typeMatch !== null) {
+      const typeName = typeMatch[1];
+      const members = FIXTURES.filter((f) => f.types.includes(typeName!));
+      return jsonResponse({
+        id: 0,
+        name: typeName,
+        names: [],
+        pokemon: members.map((f) => ({
+          slot: 1,
+          pokemon: { name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` },
+        })),
+      });
+    }
+
+    const genMatch = /\/generation\/([^/]+)\/?$/.exec(path);
+    if (genMatch !== null) {
+      const genName = genMatch[1];
+      const members = FIXTURES.filter((f) => f.generation === genName);
+      return jsonResponse({
+        id: 0,
+        name: genName,
+        pokemon_species: members.map((f) => ({
+          name: f.name,
+          url: `${UPSTREAM}/pokemon-species/${f.id}/`,
+        })),
+      });
+    }
+
+    if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+      return jsonResponse({
+        count: FIXTURES.length,
+        next: null,
+        previous: null,
+        results: FIXTURES.map((f) => ({ name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` })),
+      });
+    }
+
+    const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+    if (speciesMatch !== null) {
+      return jsonResponse(speciesBody(byId(Number(speciesMatch[1]))));
+    }
+
+    const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+    if (pokemonMatch !== null) {
+      return jsonResponse(pokemonBody(byId(Number(pokemonMatch[1]))));
+    }
+
+    return new Response('not found', { status: 404 });
+  });
+}
+
+function makeClient(fetchImpl: ReturnType<typeof makeFetchImpl>): PokeApiClient {
+  return new PokeApiClient({
+    baseUrl: UPSTREAM,
+    fetchImpl: fetchImpl as unknown as typeof fetch,
+  });
+}
+
+describe('searchPokemon', () => {
+  it('filters by english name substring', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, { name: 'saur', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([1]);
+    expect(result.results[0]?.name).toEqual({ ja: 'フシギダネ', en: 'Bulbasaur' });
+    expect(result.count).toBe(1);
+  });
+
+  it('filters by japanese name substring', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, { name: 'ヒトカゲ', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([4]);
+  });
+
+  it('filters by english name regardless of case', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, { name: 'CHARm', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([4]);
+  });
+
+  it('filters by a single type membership without fetching every pokemon', async () => {
+    const fetchImpl = makeFetchImpl();
+    const client = makeClient(fetchImpl);
+
+    const result = await searchPokemon(client, { types: ['fire'], limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([4]);
+    // 全件 `/pokemon` 一覧は引かず、type メンバー集合から候補を得ること。
+    const calledFullList = fetchImpl.mock.calls.some((call) => {
+      const p = new URL(String(call[0])).pathname;
+      return p.endsWith('/pokemon') || p.endsWith('/pokemon/');
+    });
+    expect(calledFullList).toBe(false);
+  });
+
+  it('intersects multiple types with AND semantics', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, {
+      types: ['grass', 'poison'],
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.results.map((r) => r.id)).toEqual([1, 43]);
+  });
+
+  it('filters by generation', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, {
+      generation: 'generation-ii',
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.results.map((r) => r.id)).toEqual([152]);
+  });
+
+  it('combines name, type and generation conditions', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, {
+      name: 'sau',
+      types: ['grass'],
+      generation: 'generation-i',
+      limit: 20,
+      offset: 0,
+    });
+
+    // grass の gen-i は bulbasaur(1)/oddish(43)。名前 "sau" は bulbasaur のみ一致。
+    expect(result.results.map((r) => r.id)).toEqual([1]);
+  });
+
+  it('intersects type and generation', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, {
+      types: ['grass'],
+      generation: 'generation-i',
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.results.map((r) => r.id)).toEqual([1, 43]);
+  });
+
+  it('paginates the filtered result set', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const page1 = await searchPokemon(client, {
+      types: ['grass'],
+      generation: 'generation-i',
+      limit: 1,
+      offset: 0,
+    });
+    expect(page1.results.map((r) => r.id)).toEqual([1]);
+    expect(page1.count).toBe(2);
+    expect(page1.nextOffset).toBe(1);
+
+    const page2 = await searchPokemon(client, {
+      types: ['grass'],
+      generation: 'generation-i',
+      limit: 1,
+      offset: page1.nextOffset ?? 0,
+    });
+    expect(page2.results.map((r) => r.id)).toEqual([43]);
+    expect(page2.nextOffset).toBeNull();
+  });
+
+  it('returns empty results when no candidate matches', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const result = await searchPokemon(client, {
+      types: ['fire', 'water'],
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.results).toEqual([]);
+    expect(result.count).toBe(0);
+    expect(result.nextOffset).toBeNull();
+  });
+
+  it('caps in-flight upstream fetches at the configured concurrency', async () => {
+    const base = makeFetchImpl();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      const isDetail = /\/pokemon\/\d+\/?$/.test(path) || /\/pokemon-species\/\d+\/?$/.test(path);
+      if (isDetail) {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Promise.resolve();
+      }
+      try {
+        return await base(input);
+      } finally {
+        if (isDetail) inFlight -= 1;
+      }
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    await searchPokemon(client, { name: 'a', limit: 20, offset: 0 }, undefined, 3);
+
+    expect(maxInFlight).toBeLessThanOrEqual(3);
+    expect(maxInFlight).toBeGreaterThan(0);
+  });
+});

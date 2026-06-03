@@ -6,7 +6,9 @@ import {
   PokeApiError,
   fetchPokemonDetail,
   fetchPokemonList,
+  searchPokemon,
 } from '../pokeapi/index.js';
+import type { PokemonSearchParams } from '../pokeapi/index.js';
 
 /** 一覧 1 ページの既定件数。無限スクロールの 1 バッチに相当する。 */
 const DEFAULT_LIMIT = 20;
@@ -68,7 +70,43 @@ export function createPokemonRoutes(client: PokeApiClient): Hono {
     }
   });
 
-  // 詳細は id または name で引く（FR-3）。`/list` を上に置き、静的ルートを優先させる。
+  // 検索・フィルタ（FR-2）。`type` は複数指定（`?type=grass&type=poison`）を AND で扱う。
+  // 静的ルートのため `/:idOrName` より前に登録し、`search` が動的ルートに食われないようにする。
+  routes.get('/search', async (c) => {
+    const limit = parseNonNegativeInt(c.req.query('limit'), DEFAULT_LIMIT);
+    const offset = parseNonNegativeInt(c.req.query('offset'), 0);
+
+    if (limit === null || offset === null) {
+      return c.json({ error: 'limit and offset must be non-negative integers' }, 400);
+    }
+    if (limit < 1 || limit > MAX_LIMIT) {
+      return c.json({ error: `limit must be between 1 and ${MAX_LIMIT}` }, 400);
+    }
+
+    const name = c.req.query('name');
+    const types = c.req.queries('type') ?? [];
+    const generation = c.req.query('generation');
+
+    const params: PokemonSearchParams = {
+      name: name !== undefined && name.trim() !== '' ? name : undefined,
+      types: types.filter((t) => t.trim() !== ''),
+      generation: generation !== undefined && generation.trim() !== '' ? generation : undefined,
+      limit,
+      offset,
+    };
+
+    try {
+      const result = await searchPokemon(client, params);
+      return c.json(result);
+    } catch (error) {
+      if (error instanceof PokeApiError) {
+        return c.json({ error: 'failed to search pokemon from upstream' }, mapErrorStatus(error));
+      }
+      throw error;
+    }
+  });
+
+  // 詳細は id または name で引く（FR-3）。`/list` `/search` を上に置き、静的ルートを優先させる。
   routes.get('/:idOrName', async (c) => {
     const idOrName = c.req.param('idOrName').trim().toLowerCase();
     if (idOrName === '') {
