@@ -2,6 +2,13 @@ import { hashPassword, verifyPassword } from './password.js';
 import type { AuthRepository, SessionRecord, UserRecord } from './repository.js';
 import { generateSessionId, sessionExpiry } from './session.js';
 
+/**
+ * ユーザー不在時にも bcrypt 比較を実行してレイテンシを揃えるためのダミーハッシュ。
+ * これがないと存在しないメールだけ応答が速くなり、メール列挙を許してしまう。
+ * 任意の文字列を SALT_ROUNDS=12 で bcrypt ハッシュした固定値。
+ */
+const DUMMY_HASH = '$2b$12$xh14yEXCgcafBuReGjD2UeMRBluSYRJXAPwmoFQV2mPGWYwAkyM4.';
+
 /** 認証ユースケース。リポジトリ・パスワードハッシュ・セッション発行を束ね、ルート層から使う。 */
 export class AuthService {
   constructor(private readonly repo: AuthRepository) {}
@@ -18,11 +25,8 @@ export class AuthService {
   /** メール+パスワードを検証する。成功時のみユーザーを返す。 */
   async authenticate(email: string, password: string): Promise<UserRecord | null> {
     const user = await this.repo.findUserByEmail(email);
-    if (user === null) {
-      return null;
-    }
-    const valid = await verifyPassword(password, user.passwordHash);
-    return valid ? user : null;
+    const valid = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
+    return user !== null && valid ? user : null;
   }
 
   /** ユーザーに対し新しいセッションを発行し、その id を返す。 */

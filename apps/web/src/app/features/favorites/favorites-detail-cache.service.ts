@@ -19,6 +19,12 @@ export class FavoritesDetailCache {
   /** id→詳細の取得済みキャッシュ。 */
   readonly cache = this._cache.asReadonly();
 
+  /**
+   * 取得中の id。キャッシュ書き込みは await 後なので、これが無いと
+   * orderedIds() が連続変化した際に同じ id を二重取得しうる。
+   */
+  private readonly inFlight = new Set<number>();
+
   constructor() {
     effect(() => {
       const ids = this.favorites.orderedIds();
@@ -28,25 +34,30 @@ export class FavoritesDetailCache {
 
   private async fetchMissing(ids: readonly number[]): Promise<void> {
     const have = this._cache();
-    const missing = ids.filter((id) => !have.has(id));
+    const missing = ids.filter((id) => !have.has(id) && !this.inFlight.has(id));
     if (missing.length === 0) {
       return;
     }
-    const fetched = await Promise.all(
-      missing.map((id) =>
-        firstValueFrom(this.http.get<PokemonDetailResponse>(`${this.baseUrl}/pokemon/${id}`)).catch(
-          () => null,
+    missing.forEach((id) => this.inFlight.add(id));
+    try {
+      const fetched = await Promise.all(
+        missing.map((id) =>
+          firstValueFrom(
+            this.http.get<PokemonDetailResponse>(`${this.baseUrl}/pokemon/${id}`),
+          ).catch(() => null),
         ),
-      ),
-    );
-    this._cache.update((current) => {
-      const next = new Map(current);
-      fetched.forEach((detail) => {
-        if (detail !== null) {
-          next.set(detail.id, detail);
-        }
+      );
+      this._cache.update((current) => {
+        const next = new Map(current);
+        fetched.forEach((detail) => {
+          if (detail !== null) {
+            next.set(detail.id, detail);
+          }
+        });
+        return next;
       });
-      return next;
-    });
+    } finally {
+      missing.forEach((id) => this.inFlight.delete(id));
+    }
   }
 }
