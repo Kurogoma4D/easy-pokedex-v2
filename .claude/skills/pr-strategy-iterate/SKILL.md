@@ -38,14 +38,25 @@ gh issue list --repo Kurogoma4D/easy-pokedex-v2 --state open --limit 1 -S "sort:
 
 ## ワークフロー
 
-### Step 0 — run-id 確定と作業開始時刻
+### Step 0 — 専用 worktree 作成・run-id 確定・作業開始時刻
+
+このランは専用 worktree の中で実行し、Step 7 で削除する（メイン作業ツリーを汚さず、ブランチ取り違え事故を防ぐ）。
+metrics.json はメインリポジトリ側のパスへ書き、worktree 削除後も残す。
 
 ```bash
+MAIN_REPO="$(git rev-parse --show-toplevel)"
 RUN_TS=$(date -u +%Y%m%dT%H%M%SZ)
 STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # 自己申告（PR 生成前のため記録は payload のみ）
-echo "run-id=issue-<番号>-iterate-${RUN_TS}"
-mkdir -p "docs/experiments/pr-strategy/issue-<番号>-iterate-${RUN_TS}"
+RUN_ID="issue-<番号>-iterate-${RUN_TS}"
+WT="${MAIN_REPO}-prstrat-${RUN_TS}"
+git -C "$MAIN_REPO" fetch origin main -q
+git -C "$MAIN_REPO" worktree add --detach "$WT" origin/main   # 最新 main 断面の専用 worktree
+cd "$WT"
+mkdir -p "$MAIN_REPO/docs/experiments/pr-strategy/${RUN_ID}"
+echo "run-id=${RUN_ID} worktree=${WT}"
 ```
+
+以降のステップ（issue 解決・Subagent 委譲・runlog 投稿・集計）はこの worktree 内で行う。
 
 ### Step 1 — issue を解決
 
@@ -124,9 +135,14 @@ gh pr view <pr> --repo Kurogoma4D/easy-pokedex-v2 --json number,url,createdAt,co
 - `pr_opened_at` = `createdAt`。`ready_at` = `ready` runlog コメントの `createdAt`。
 - `review_rounds` = `RUNLOG-REVIEW` レビュー件数。
 - `elapsed_seconds` = `ready_at − pr_opened_at`（秒）。
-- `docs/experiments/pr-strategy/<run-id>/metrics.json` を Write（README の metrics スキーマ、`elapsed_source: "pr_records"`）。
+- `$MAIN_REPO/docs/experiments/pr-strategy/${RUN_ID}/metrics.json` を Write（README の metrics スキーマ、`elapsed_source: "pr_records"`）。worktree 内でなくメイン側へ書くことで削除後も残す。
 
-### Step 7 — オープンのまま停止・報告
+### Step 7 — worktree 削除・オープンのまま停止・報告
+
+```bash
+cd "$MAIN_REPO"
+git worktree remove --force "$WT"
+```
 
 - マージ・クローズしない。issue/PR・反復回数・最終判定・`elapsed_seconds`・metrics パス・残指摘を報告。
 
@@ -136,4 +152,5 @@ gh pr view <pr> --repo Kurogoma4D/easy-pokedex-v2 --json number,url,createdAt,co
 - 実装・レビュー・修正は独立 Subagent。プロンプトは正準ソースのみ（中核原則）。
 - レビューは LGTM まで反復（上限 8）。マージ・クローズしない。
 - 計測は PR 記録から集計する（`pr_opened_at`〜`ready_at`）。手元の `date` 値は補助のみ。
+- このランは Step 0 で作成した専用 worktree 内で実行し、終了時（成功・失敗を問わず）必ず `git worktree remove --force "$WT"` で削除する。
 - 各ステップの結果を確認してから次へ進む。回復不能な失敗は明確に報告して停止する。
