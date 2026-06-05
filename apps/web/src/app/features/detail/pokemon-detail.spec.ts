@@ -12,6 +12,7 @@ const BULBASAUR: PokemonDetailResponse = {
   id: 1,
   name: { ja: 'フシギダネ', en: 'Bulbasaur' },
   imageUrl: 'https://example.test/1.png',
+  cryUrl: 'https://example.test/cries/latest/1.ogg',
   height: 7,
   weight: 69,
   types: [
@@ -373,6 +374,95 @@ describe('PokemonDetail', () => {
 
     expect(el.querySelector('.detail__badge--legendary')?.textContent).toContain('Legendary');
     expect(el.querySelector('.detail__badge--mythical')?.textContent).toContain('Mythical');
+  });
+
+  it('renders the cry button with a localized accessible label that follows the locale', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button).toBeTruthy();
+    expect(button.getAttribute('aria-label')).toContain('フシギダネ');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+    expect(button.getAttribute('aria-label')).toContain('Bulbasaur');
+  });
+
+  it('plays the cry url through Audio on click when the source is available', async () => {
+    const played: string[] = [];
+    const originalAudio = globalThis.Audio;
+    class FakeAudio {
+      constructor(public readonly src?: string) {}
+      canPlayType(): string {
+        return 'maybe';
+      }
+      play(): Promise<void> {
+        played.push(this.src ?? '');
+        return Promise.resolve();
+      }
+    }
+    (globalThis as { Audio: unknown }).Audio = FakeAudio;
+    try {
+      const fixture = createFixture('1');
+      await flushDetail(fixture);
+      const el = fixture.nativeElement as HTMLElement;
+      const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+      expect(button.disabled).toBe(false);
+      button.click();
+
+      expect(played).toEqual(['https://example.test/cries/latest/1.ogg']);
+    } finally {
+      (globalThis as { Audio: unknown }).Audio = originalAudio;
+    }
+  });
+
+  it('disables the cry button when the source url is missing', async () => {
+    const originalAudio = globalThis.Audio;
+    class FakeAudio {
+      canPlayType(): string {
+        return 'maybe';
+      }
+      play(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+    (globalThis as { Audio: unknown }).Audio = FakeAudio;
+    try {
+      const fixture = createFixture('1');
+      await flushDetailWith(fixture, { ...BULBASAUR, cryUrl: null });
+      const el = fixture.nativeElement as HTMLElement;
+      const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+      expect(button.disabled).toBe(true);
+    } finally {
+      (globalThis as { Audio: unknown }).Audio = originalAudio;
+    }
+  });
+
+  it('disables the cry button when the browser cannot play ogg', async () => {
+    const originalAudio = globalThis.Audio;
+    class FakeAudio {
+      canPlayType(): string {
+        return '';
+      }
+      play(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+    (globalThis as { Audio: unknown }).Audio = FakeAudio;
+    try {
+      const fixture = createFixture('1');
+      await flushDetail(fixture);
+      const el = fixture.nativeElement as HTMLElement;
+      const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+      expect(button.disabled).toBe(true);
+    } finally {
+      (globalThis as { Audio: unknown }).Audio = originalAudio;
+    }
   });
 
   it('shows a loading status before the response arrives', async () => {

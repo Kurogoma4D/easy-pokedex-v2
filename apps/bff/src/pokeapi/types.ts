@@ -53,6 +53,12 @@ export interface PokeApiPokemonSprites {
   };
 }
 
+/** 鳴き声の音源 URL（.ogg）。`latest` を優先し、`legacy` はフォールバック候補。 */
+export interface PokeApiPokemonCries {
+  readonly latest: string | null;
+  readonly legacy: string | null;
+}
+
 /** `/pokemon/{id|name}` のレスポンス。 */
 export interface PokeApiPokemon {
   readonly id: number;
@@ -65,6 +71,8 @@ export interface PokeApiPokemon {
   readonly abilities: readonly PokeApiPokemonAbility[];
   readonly sprites: PokeApiPokemonSprites;
   readonly species: PokeApiNamedResource;
+  /** 鳴き声音源（上流が省略する場合があるため任意）。 */
+  readonly cries?: PokeApiPokemonCries;
 }
 
 export interface PokeApiFlavorTextEntry {
@@ -267,6 +275,8 @@ export interface PokemonDetail {
   readonly name: LocalizedName;
   /** スプライト画像 URL。上流に画像が無い場合は null。 */
   readonly imageUrl: string | null;
+  /** 鳴き声音源 URL（.ogg、latest 優先）。上流に音源が無い場合は null。フロントが直接 Audio で参照する。 */
+  readonly cryUrl: string | null;
   /** 身長（デシメートル単位の上流値そのまま）。 */
   readonly height: number;
   /** 体重（ヘクトグラム単位の上流値そのまま）。 */

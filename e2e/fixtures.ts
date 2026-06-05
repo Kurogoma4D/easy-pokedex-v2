@@ -29,6 +29,7 @@ export const CHARIZARD_DETAIL = {
   id: 6,
   name: { ja: 'リザードン', en: 'Charizard' },
   imageUrl: sprite(6),
+  cryUrl: 'https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/6.ogg',
   height: 17,
   weight: 905,
   types: [type('fire', 'ほのお', 'Fire'), type('flying', 'ひこう', 'Flying')],
@@ -102,6 +103,8 @@ export const MEW_DETAIL = {
   id: 151,
   name: { ja: 'ミュウ', en: 'Mew' },
   imageUrl: sprite(151),
+  // 音源欠落（cryUrl: null）の代表。再生ボタンが無効化されることを E2E で検証する。
+  cryUrl: null,
   height: 4,
   weight: 40,
   types: [type('psychic', 'エスパー', 'Psychic')],
@@ -244,6 +247,12 @@ export async function stubBff(page: Page): Promise<void> {
   });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
   await page.route('**/api/pokemon/151', (route) => fulfillJson(route, MEW_DETAIL));
+
+  // 鳴き声音源（PokeAPI 由来 URL を直接 Audio で参照する）は外部 CDN を叩かないよう
+  // 空の ogg として打ち返す。再生ボタンのクリックで音源 URL が参照されることの検証に用いる。
+  await page.route('**/cries/pokemon/latest/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'audio/ogg', body: Buffer.from('') }),
+  );
 
   await page.route('https://raw.githubusercontent.com/**', (route) =>
     route.fulfill({

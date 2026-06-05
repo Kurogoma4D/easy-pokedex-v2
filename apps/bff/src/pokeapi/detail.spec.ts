@@ -39,6 +39,8 @@ interface PokemonFixture {
   readonly generation?: string;
   readonly isLegendary?: boolean;
   readonly isMythical?: boolean;
+  /** 鳴き声音源。未指定なら上流レスポンスに cries を含めない（音源欠落を再現する）。 */
+  readonly cries?: { readonly latest?: string | null; readonly legacy?: string | null };
 }
 
 const BULBASAUR: PokemonFixture = {
@@ -84,6 +86,10 @@ const BULBASAUR: PokemonFixture = {
   generation: 'generation-i',
   isLegendary: false,
   isMythical: false,
+  cries: {
+    latest: 'https://cry.test/latest/1.ogg',
+    legacy: 'https://cry.test/legacy/1.ogg',
+  },
 };
 
 const IVYSAUR: PokemonFixture = {
@@ -156,6 +162,10 @@ function pokemonBody(f: PokemonFixture): unknown {
       front_shiny: null,
       other: { 'official-artwork': { front_default: f.artwork ?? null } },
     },
+    // cries 未指定のフィクスチャでは上流レスポンスからキー自体を省き、音源欠落を再現する。
+    ...(f.cries !== undefined
+      ? { cries: { latest: f.cries.latest ?? null, legacy: f.cries.legacy ?? null } }
+      : {}),
     species: { name: f.name, url: `${UPSTREAM}/pokemon-species/${f.id}/` },
   };
 }
@@ -290,6 +300,31 @@ describe('fetchPokemonDetail', () => {
       { id: 'attack', base: 49 },
       { id: 'defense', base: 49 },
     ]);
+  });
+
+  it('includes the cry url, preferring cries.latest over legacy', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const detail = await fetchPokemonDetail(client, 'bulbasaur');
+
+    expect(detail.cryUrl).toBe('https://cry.test/latest/1.ogg');
+  });
+
+  it('falls back the cry url to cries.legacy when latest is missing', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/pokemon\/1\/?$/.test(path)) {
+        const body = pokemonBody(BULBASAUR) as Record<string, unknown>;
+        body.cries = { latest: null, legacy: 'https://cry.test/legacy/1.ogg' };
+        return jsonResponse(body);
+      }
+      return makeFetchImpl()(input);
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const detail = await fetchPokemonDetail(client, 1);
+
+    expect(detail.cryUrl).toBe('https://cry.test/legacy/1.ogg');
   });
 
   it('includes localized dex info (flavor text, genus, generation, legendary/mythical) from species', async () => {
@@ -461,6 +496,7 @@ describe('fetchPokemonDetail', () => {
       },
     ]);
     expect(detail.imageUrl).toBeNull();
+    expect(detail.cryUrl).toBeNull();
     expect(detail.evolutionChain.id).toBe(99);
     expect(detail.evolutionChain.evolvesTo).toEqual([]);
   });

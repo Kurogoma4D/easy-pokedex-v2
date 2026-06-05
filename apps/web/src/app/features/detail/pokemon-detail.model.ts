@@ -84,6 +84,8 @@ export interface PokemonDetailResponse {
   readonly name: LocalizedName;
   /** スプライト画像 URL。上流に画像が無い場合は null。 */
   readonly imageUrl: string | null;
+  /** 鳴き声音源 URL（.ogg、latest 優先）。上流に音源が無い場合は null。 */
+  readonly cryUrl: string | null;
   /** 身長（デシメートル単位の上流値そのまま）。 */
   readonly height: number;
   /** 体重（ヘクトグラム単位の上流値そのまま）。 */

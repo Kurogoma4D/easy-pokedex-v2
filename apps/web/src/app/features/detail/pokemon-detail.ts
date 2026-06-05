@@ -103,6 +103,16 @@ function formatMultiplier(multiplier: number): string {
           @if (genus()) {
             <p class="detail__genus">{{ genus() }}</p>
           }
+          <button
+            class="detail__cry"
+            type="button"
+            [disabled]="!canPlayCry()"
+            [attr.aria-label]="cryLabel()"
+            (click)="playCry()"
+          >
+            <app-icon name="sound" />
+            {{ messages()['detail.playCry'] }}
+          </button>
           @if (detail.isLegendary || detail.isMythical) {
             <div class="detail__badges">
               @if (detail.isLegendary) {
@@ -244,6 +254,7 @@ function formatMultiplier(multiplier: number): string {
     .detail__status,
     .detail__retry,
     .detail__genus,
+    .detail__cry,
     .detail__badge,
     .detail__flavor,
     .stats__label,
@@ -348,6 +359,24 @@ function formatMultiplier(multiplier: number): string {
     }
     .detail__genus {
       color: var(--color-text-muted);
+    }
+    .detail__cry {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-3);
+      color: var(--color-text);
+      background-color: var(--color-screen);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-chip);
+      box-shadow: var(--shadow-dot-sm);
+      cursor: pointer;
+    }
+    .detail__cry:disabled {
+      color: var(--color-text-muted);
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 0.6;
     }
     .detail__flavor {
       line-height: 1.6;
@@ -575,6 +604,42 @@ export class PokemonDetail {
     const detail = this.data();
     return detail ? this.localeService.localizeName(detail.genus) : '';
   });
+
+  /** 鳴き声音源 URL。BFF が音源を持たない場合は null。 */
+  protected readonly cryUrl = computed(() => this.data()?.cryUrl ?? null);
+
+  /**
+   * 鳴き声を再生できるか。音源 URL があり、かつブラウザが .ogg を再生可能と判断する場合のみ true。
+   * `canPlayType` は '' / 'maybe' / 'probably' を返すため、空文字（再生不可）だけを弾く。
+   */
+  protected readonly canPlayCry = computed(() => {
+    const url = this.cryUrl();
+    if (url === null) {
+      return false;
+    }
+    if (typeof Audio === 'undefined') {
+      return false;
+    }
+    return new Audio().canPlayType('audio/ogg') !== '';
+  });
+
+  /** 再生ボタンのアクセシブルラベル。`{name}` を選択ロケールの名前で埋める。 */
+  protected readonly cryLabel = computed(() =>
+    this.messages()['a11y.playCry'].replace('{name}', this.name()),
+  );
+
+  /**
+   * 鳴き声を再生する。音源 URL を PokeAPI 由来のまま直接 Audio で参照する（BFF はプロキシしない）。
+   * 再生不可・音源欠落時は何もしない。再生中の Promise 拒否（自動再生制限など）は画面を壊さないよう握り潰す。
+   */
+  protected playCry(): void {
+    const url = this.cryUrl();
+    if (url === null || !this.canPlayCry()) {
+      return;
+    }
+    const audio = new Audio(url);
+    void audio.play().catch(() => undefined);
+  }
 
   /**
    * 世代の表示名。検索フィルタと同じ `GENERATIONS` から選択ロケールで解決する。
