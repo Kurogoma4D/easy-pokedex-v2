@@ -200,6 +200,11 @@ function makeDetailFetchImpl() {
           { name: 'でんき', language: { name: 'ja-Hrkt', url: '' } },
           { name: 'electric', language: { name: 'en', url: '' } },
         ],
+        damage_relations: {
+          double_damage_from: [{ name: 'ground', url: '' }],
+          half_damage_from: [{ name: 'flying', url: '' }],
+          no_damage_from: [],
+        },
         pokemon: [],
       });
     }
