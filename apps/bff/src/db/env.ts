@@ -35,8 +35,9 @@ function readDatabaseUrl(source: NodeJS.ProcessEnv): string {
     throw new Error('DATABASE_URL or POSTGRES_DB must be set');
   }
 
-  const host = source['POSTGRES_HOST']?.trim() ?? DEFAULT_POSTGRES_HOST;
-  const port = source['POSTGRES_PORT']?.trim() ?? DEFAULT_POSTGRES_PORT;
+  // trim 後に空文字となる明示的な空設定（例: `POSTGRES_HOST=`）も未設定と同様に既定値へ倒す。
+  const host = source['POSTGRES_HOST']?.trim() || DEFAULT_POSTGRES_HOST;
+  const port = source['POSTGRES_PORT']?.trim() || DEFAULT_POSTGRES_PORT;
   const auth = `${encodeURIComponent(user)}:${encodeURIComponent(password)}`;
   return `postgres://${auth}@${host}:${port}/${db}`;
 }

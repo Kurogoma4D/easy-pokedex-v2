@@ -37,6 +37,18 @@ describe('loadDbEnv', () => {
     expect(env.databaseUrl).toBe('postgres://pokedex:pw@localhost:5432/pokedex');
   });
 
+  it('host / port が空文字（trim 後）でも既定値へ倒す', () => {
+    const env = loadDbEnv({
+      ...baseSecret,
+      POSTGRES_USER: 'pokedex',
+      POSTGRES_PASSWORD: 'pw',
+      POSTGRES_DB: 'pokedex',
+      POSTGRES_HOST: '   ',
+      POSTGRES_PORT: '',
+    });
+    expect(env.databaseUrl).toBe('postgres://pokedex:pw@localhost:5432/pokedex');
+  });
+
   it('ユーザー名・パスワードを URL エンコードする', () => {
     const env = loadDbEnv({
       ...baseSecret,

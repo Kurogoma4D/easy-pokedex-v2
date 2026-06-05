@@ -23,8 +23,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+main().catch(async (error: unknown) => {
   console.error('Migration failed:', error);
   process.exitCode = 1;
-  void closeDbClient();
+  try {
+    await closeDbClient();
+  } catch (closeError: unknown) {
+    console.error('Failed to close DB client:', closeError);
+  }
 });
