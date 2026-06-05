@@ -98,7 +98,7 @@ function formatMultiplier(multiplier: number): string {
           <h1 class="detail__name">{{ name() }}</h1>
           <div class="detail__types">
             @for (type of detail.types; track type.id) {
-              <app-type-chip [type]="type.id" />
+              <app-type-chip [type]="type.id" [name]="type.name" />
             }
           </div>
           <dl class="detail__metrics">
@@ -163,7 +163,7 @@ function formatMultiplier(multiplier: number): string {
                     }}</span>
                     <span class="matchups__chips">
                       @for (type of group.types; track type.id) {
-                        <app-type-chip [type]="type.id" />
+                        <app-type-chip [type]="type.id" [name]="type.name" />
                       }
                     </span>
                   </li>

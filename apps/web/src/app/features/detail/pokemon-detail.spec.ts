@@ -64,15 +64,15 @@ const BULBASAUR: PokemonDetailResponse = {
     ],
     resistances: [
       {
-        multiplier: 0.25,
-        types: [{ id: 'grass', name: { ja: 'くさ', en: 'Grass' } }],
-      },
-      {
         multiplier: 0.5,
         types: [
           { id: 'water', name: { ja: 'みず', en: 'Water' } },
           { id: 'electric', name: { ja: 'でんき', en: 'Electric' } },
         ],
+      },
+      {
+        multiplier: 0.25,
+        types: [{ id: 'grass', name: { ja: 'くさ', en: 'Grass' } }],
       },
     ],
     immunities: [],
@@ -228,16 +228,35 @@ describe('PokemonDetail', () => {
     expect(weakMultipliers).toEqual(['×4', '×2']);
     expect(weak.querySelectorAll('app-type-chip').length).toBe(4);
 
-    // 耐性: ×0.25 と ×0.5 の 2 グループ。
+    // 耐性: 倍率降順で ×0.5 と ×0.25 の 2 グループ。
     const resistMultipliers = Array.from(resist.querySelectorAll('.matchups__multiplier')).map(
       (n) => n.textContent?.trim(),
     );
-    expect(resistMultipliers).toEqual(['×0.25', '×0.5']);
+    expect(resistMultipliers).toEqual(['×0.5', '×0.25']);
     expect(resist.querySelectorAll('app-type-chip').length).toBe(3);
 
     // 無効: エントリ無しなので空状態ラベルが出てチップは無い。
     expect(immune.querySelectorAll('.matchups__group').length).toBe(0);
     expect(immune.querySelector('.matchups__empty')?.textContent).toContain('なし');
+
+    // チップのラベルは BFF DTO の localized name 由来で出る（静的辞書ではなく DTO が消費される）。
+    expect(weak.textContent).toContain('エスパー');
+    expect(weak.textContent).toContain('ほのお');
+  });
+
+  it('localizes the matchup type chips from the BFF DTO when the locale changes', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const weak = el.querySelector('.matchups .matchups__section') as HTMLElement;
+
+    expect(weak.textContent).toContain('エスパー');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    expect(weak.textContent).toContain('Psychic');
+    expect(weak.textContent).toContain('Fire');
   });
 
   it('localizes the matchup section headings when the locale changes', async () => {
