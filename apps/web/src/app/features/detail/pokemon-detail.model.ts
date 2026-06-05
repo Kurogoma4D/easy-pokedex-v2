@@ -67,4 +67,14 @@ export interface PokemonDetailResponse {
   readonly abilities: readonly PokemonAbilityDetail[];
   /** 進化チェーンの根。単一進化（進化なし）でも 1 ノードのツリーとして返す。 */
   readonly evolutionChain: EvolutionNode;
+  /** 図鑑説明文（ja/en）。改行・制御文字を整形済み。該当ロケールが無ければ英語へフォールバックする。 */
+  readonly flavorText: LocalizedName;
+  /** 分類（例: ja「ねずみポケモン」/ en「Mouse Pokémon」）。該当ロケールが無ければ英語へフォールバックする。 */
+  readonly genus: LocalizedName;
+  /** 世代識別子（例: `generation-i`）。 */
+  readonly generation: string;
+  /** 伝説のポケモンか。 */
+  readonly isLegendary: boolean;
+  /** 幻のポケモンか。 */
+  readonly isMythical: boolean;
 }

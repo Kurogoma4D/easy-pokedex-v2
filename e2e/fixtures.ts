@@ -21,9 +21,8 @@ const type = (id: string, ja: string, en: string): { id: string; name: Localized
 });
 
 /**
- * リザードン（ほのお／ひこう）の詳細スタブ。複合タイプの被ダメージ相性を掛け合わせた結果、
- * ×4（いわ）・×0.5/×0.25（耐性）・×0（じめん, 飛行で無効）が出るため、倍率ラベルとタイプチップの
- * ローカライズ両方を 1 体で検証できる。
+ * リザードン（ほのお／ひこう）の詳細スタブ。タイプチップのローカライズと
+ * 図鑑情報（説明文・分類・世代）の言語切替追従を 1 体で検証できる。
  */
 export const CHARIZARD_DETAIL = {
   id: 6,
@@ -64,6 +63,50 @@ export const CHARIZARD_DETAIL = {
       },
     ],
   },
+  flavorText: {
+    ja: 'ひこうしながら きえん を はく。からだじゅうが もえているように みえる。',
+    en: 'It breathes fire that is hot enough to melt boulders.',
+  },
+  genus: { ja: 'かえんポケモン', en: 'Flame Pokémon' },
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
+} as const;
+
+/**
+ * ミュウ（伝説かつ幻）の詳細スタブ。`isLegendary` と `isMythical` を両方立て、
+ * 伝説/幻バッジが両方描画されることを E2E で検証するために用いる。
+ */
+export const MEW_DETAIL = {
+  id: 151,
+  name: { ja: 'ミュウ', en: 'Mew' },
+  imageUrl: sprite(151),
+  height: 4,
+  weight: 40,
+  types: [type('psychic', 'エスパー', 'Psychic')],
+  stats: [
+    { id: 'hp', base: 100 },
+    { id: 'attack', base: 100 },
+    { id: 'defense', base: 100 },
+    { id: 'special-attack', base: 100 },
+    { id: 'special-defense', base: 100 },
+    { id: 'speed', base: 100 },
+  ],
+  abilities: [{ id: 'synchronize', name: { ja: 'シンクロ', en: 'Synchronize' }, isHidden: false }],
+  evolutionChain: {
+    id: 151,
+    name: { ja: 'ミュウ', en: 'Mew' },
+    imageUrl: sprite(151),
+    evolvesTo: [],
+  },
+  flavorText: {
+    ja: 'いでんしには すべての ポケモンの ようそが ふくまれていると いわれている。',
+    en: 'Its DNA is said to contain the genetic codes of all Pokémon.',
+  },
+  genus: { ja: 'しんしゅポケモン', en: 'New Species Pokémon' },
+  generation: 'generation-i',
+  isLegendary: true,
+  isMythical: true,
 } as const;
 
 /** 名前検索（`?name=...`）のスタブ結果。リザードンと近縁の数体だけを返す。 */
@@ -174,6 +217,7 @@ export async function stubBff(page: Page): Promise<void> {
     return fulfillJson(route, matchesSearchCandidate(name) ? SEARCH_RESULTS : EMPTY_SEARCH_RESULTS);
   });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
+  await page.route('**/api/pokemon/151', (route) => fulfillJson(route, MEW_DETAIL));
 
   await page.route('https://raw.githubusercontent.com/**', (route) =>
     route.fulfill({
