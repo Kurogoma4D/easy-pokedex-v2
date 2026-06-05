@@ -262,6 +262,13 @@ export async function stubBff(page: Page): Promise<void> {
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
   await page.route('**/api/pokemon/7', (route) => fulfillJson(route, NO_CRY_DETAIL));
   await page.route('**/api/pokemon/151', (route) => fulfillJson(route, MEW_DETAIL));
+  // 詳細はお気に入りページのカード描画用。番号 1/4 のスタブを少数の id で返す。
+  await page.route('**/api/pokemon/1', (route) =>
+    fulfillJson(route, { ...CHARIZARD_DETAIL, id: 1, name: { ja: 'フシギダネ', en: 'Bulbasaur' } }),
+  );
+  await page.route('**/api/pokemon/4', (route) =>
+    fulfillJson(route, { ...CHARIZARD_DETAIL, id: 4, name: { ja: 'ヒトカゲ', en: 'Charmander' } }),
+  );
 
   await page.route('https://raw.githubusercontent.com/**', (route) => {
     const url = route.request().url();
@@ -281,5 +288,58 @@ export async function stubBff(page: Page): Promise<void> {
         'base64',
       ),
     });
+  });
+
+  await stubAuth(page);
+}
+
+/**
+ * 認証・お気に入り API（`/api/auth/**`, `/api/favorites/**`）をブラウザ層でスタブする。
+ * セッションとお気に入りをページ内の可変状態として保持し、未ログイン時の 401、ログイン後の
+ * トグル・一覧取得を本物の BFF と同じ挙動で再現する（Cookie のやり取りはしないため状態で代用）。
+ * `stubBff` から呼ばれ、既定では未ログイン状態でセットアップされる。
+ */
+export async function stubAuth(page: Page): Promise<void> {
+  const state = { loggedIn: false, favorites: [] as number[] };
+
+  await page.route('**/api/auth/me', (route) =>
+    state.loggedIn
+      ? fulfillJson(route, { user: { id: 1, email: 'trainer@example.com' } })
+      : route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+  );
+
+  const authenticate = (route: Route): Promise<void> => {
+    state.loggedIn = true;
+    return fulfillJson(route, { user: { id: 1, email: 'trainer@example.com' } });
+  };
+  await page.route('**/api/auth/login', authenticate);
+  await page.route('**/api/auth/register', authenticate);
+  await page.route('**/api/auth/logout', (route) => {
+    state.loggedIn = false;
+    state.favorites = [];
+    return route.fulfill({ status: 204, body: '' });
+  });
+
+  await page.route('**/api/favorites', (route) => {
+    if (!state.loggedIn) {
+      return route.fulfill({ status: 401, contentType: 'application/json', body: '{}' });
+    }
+    return fulfillJson(route, { pokemonIds: state.favorites });
+  });
+
+  await page.route(/\/api\/favorites\/(\d+)$/, (route) => {
+    if (!state.loggedIn) {
+      return route.fulfill({ status: 401, contentType: 'application/json', body: '{}' });
+    }
+    const id = Number(/\/api\/favorites\/(\d+)$/.exec(route.request().url())![1]);
+    const method = route.request().method();
+    if (method === 'PUT') {
+      if (!state.favorites.includes(id)) {
+        state.favorites = [id, ...state.favorites];
+      }
+      return fulfillJson(route, { pokemonId: id, favorite: true });
+    }
+    state.favorites = state.favorites.filter((value) => value !== id);
+    return fulfillJson(route, { pokemonId: id, favorite: false });
   });
 }

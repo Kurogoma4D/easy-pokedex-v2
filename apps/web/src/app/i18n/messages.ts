@@ -8,6 +8,10 @@ const ja = {
   'app.title': 'イージーポケモン図鑑',
   'nav.list': '一覧',
   'nav.detail': '詳細',
+  'nav.favorites': 'おきにいり',
+  'nav.login': 'ログイン',
+  'nav.register': 'とうろく',
+  'nav.logout': 'ログアウト',
   'locale.label': '言語',
   'locale.ja': '日本語',
   'locale.en': 'English',
@@ -69,6 +73,28 @@ const ja = {
   'stat.special-attack': 'とくこう',
   'stat.special-defense': 'とくぼう',
   'stat.speed': 'すばやさ',
+
+  // 認証
+  'auth.login.title': 'ログイン',
+  'auth.login.submit': 'ログイン',
+  'auth.login.toRegister': 'アカウントが ないときは',
+  'auth.register.title': 'アカウントとうろく',
+  'auth.register.submit': 'とうろく',
+  'auth.register.toLogin': 'アカウントが あるときは',
+  'auth.email': 'メールアドレス',
+  'auth.password': 'パスワード',
+  'auth.password.hint': 'パスワードは {count}もじ いじょう',
+  'auth.error.invalidInput': 'にゅうりょくを かくにんしてください。',
+  'auth.error.invalidCredentials': 'メールアドレスか パスワードが ちがいます。',
+  'auth.error.emailTaken': 'この メールアドレスは すでに つかわれています。',
+  'auth.error.network': 'つうしんに しっぱいしました。',
+
+  // お気に入り
+  'favorites.title': 'おきにいり',
+  'favorites.count': '{count}ひき',
+  'favorites.empty': 'まだ おきにいりは ありません。',
+  'favorites.add': 'おきにいりに ついか',
+  'favorites.remove': 'おきにいりを かいじょ',
 } as const;
 
 export type MessageKey = keyof typeof ja;
@@ -79,6 +105,10 @@ const en: MessageDictionary = {
   'app.title': 'Easy Pokédex',
   'nav.list': 'List',
   'nav.detail': 'Detail',
+  'nav.favorites': 'Favorites',
+  'nav.login': 'Log in',
+  'nav.register': 'Sign up',
+  'nav.logout': 'Log out',
   'locale.label': 'Language',
   'locale.ja': '日本語',
   'locale.en': 'English',
@@ -140,6 +170,28 @@ const en: MessageDictionary = {
   'stat.special-attack': 'Sp. Atk',
   'stat.special-defense': 'Sp. Def',
   'stat.speed': 'Speed',
+
+  // Auth
+  'auth.login.title': 'Log in',
+  'auth.login.submit': 'Log in',
+  'auth.login.toRegister': "Don't have an account?",
+  'auth.register.title': 'Create account',
+  'auth.register.submit': 'Sign up',
+  'auth.register.toLogin': 'Already have an account?',
+  'auth.email': 'Email',
+  'auth.password': 'Password',
+  'auth.password.hint': 'Password must be at least {count} characters',
+  'auth.error.invalidInput': 'Please check your input.',
+  'auth.error.invalidCredentials': 'Incorrect email or password.',
+  'auth.error.emailTaken': 'This email is already registered.',
+  'auth.error.network': 'Something went wrong. Please try again.',
+
+  // Favorites
+  'favorites.title': 'Favorites',
+  'favorites.count': '{count}',
+  'favorites.empty': 'No favorites yet.',
+  'favorites.add': 'Add to favorites',
+  'favorites.remove': 'Remove from favorites',
 };
 
 export const MESSAGES: Record<Locale, MessageDictionary> = {

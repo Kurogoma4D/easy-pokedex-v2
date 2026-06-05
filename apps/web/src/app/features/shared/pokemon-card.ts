@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
+import { FavoriteToggle } from '../favorites/favorite-toggle';
 import { PokemonListItem } from '../list/pokemon-list.model';
 import { TypeChip } from './type-chip';
 
@@ -16,27 +17,36 @@ function formatDexNumber(id: number): string {
 @Component({
   selector: 'app-pokemon-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TypeChip],
+  imports: [RouterLink, TypeChip, FavoriteToggle],
   template: `
-    <a class="card" [routerLink]="['/detail', item().id]">
-      <span class="card__dex">{{ dexNumber() }}</span>
-      <div class="card__art">
-        @if (item().imageUrl) {
-          <img [src]="item().imageUrl" [alt]="name()" loading="lazy" decoding="async" />
-        } @else {
-          <span class="card__art-fallback" aria-hidden="true">?</span>
-        }
+    <div class="card-wrap">
+      <a class="card" [routerLink]="['/detail', item().id]">
+        <span class="card__dex">{{ dexNumber() }}</span>
+        <div class="card__art">
+          @if (item().imageUrl) {
+            <img [src]="item().imageUrl" [alt]="name()" loading="lazy" decoding="async" />
+          } @else {
+            <span class="card__art-fallback" aria-hidden="true">?</span>
+          }
+        </div>
+        <span class="card__name">{{ name() }}</span>
+        <span class="card__types">
+          @for (type of item().types; track type) {
+            <app-type-chip [type]="type" />
+          }
+        </span>
+      </a>
+      <div class="card__fav">
+        <app-favorite-toggle [pokemonId]="item().id" />
       </div>
-      <span class="card__name">{{ name() }}</span>
-      <span class="card__types">
-        @for (type of item().types; track type) {
-          <app-type-chip [type]="type" />
-        }
-      </span>
-    </a>
+    </div>
   `,
   styles: `
+    .card-wrap {
+      position: relative;
+    }
     .card {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -56,6 +66,12 @@ function formatDexNumber(id: number): string {
     .card:focus-visible {
       transform: translate(-2px, -2px);
       box-shadow: var(--shadow-dot-md);
+    }
+    .card__fav {
+      position: absolute;
+      top: var(--space-2);
+      right: var(--space-2);
+      z-index: 1;
     }
     .card__dex {
       align-self: flex-start;
