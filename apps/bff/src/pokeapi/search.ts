@@ -74,6 +74,34 @@ function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/** ひらがなのコードポイント範囲（U+3041「ぁ」〜U+3096「ゖ」）。 */
+const HIRAGANA_START = 0x3041;
+const HIRAGANA_END = 0x3096;
+
+/** ひらがな→カタカナへ揃えるためのコードポイント差分（同一字種間で +0x60）。 */
+const HIRAGANA_TO_KATAKANA_OFFSET = 0x60;
+
+/**
+ * かな種別と全角/半角の差異を吸収してカタカナへ正規化する。
+ *
+ * PokeAPI の `ja-Hrkt` 名はカタカナ（例: リザードン）で提供される一方、日本語 IME の既定入力は
+ * ひらがな。種別を揃えないとひらがな入力がカタカナ名にヒットしない。まず NFKC で全角英数字と
+ * 半角カタカナを標準形へ畳み込み、続いてひらがなを +0x60 のコードポイントシフトでカタカナへ写す。
+ */
+export function normalizeKana(value: string): string {
+  const folded = value.normalize('NFKC');
+  let result = '';
+  for (const char of folded) {
+    const code = char.codePointAt(0)!;
+    if (code >= HIRAGANA_START && code <= HIRAGANA_END) {
+      result += String.fromCodePoint(code + HIRAGANA_TO_KATAKANA_OFFSET);
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
 /** 上流 404 か（未知のリソース名はメンバー無しとして扱うための判定）。 */
 function isNotFound(error: unknown): boolean {
   return error instanceof PokeApiError && error.kind === 'http' && error.status === 404;

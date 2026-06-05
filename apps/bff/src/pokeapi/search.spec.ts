@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { resolveCandidates, searchPokemon } from './search.js';
+import { normalizeKana, resolveCandidates, searchPokemon } from './search.js';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -649,5 +649,37 @@ describe('resolveCandidates', () => {
       { id: 1, slug: 'bulbasaur' },
       { id: 43, slug: 'oddish' },
     ]);
+  });
+});
+
+describe('normalizeKana', () => {
+  it('ひらがなをカタカナへ写す', () => {
+    expect(normalizeKana('りざ')).toBe('リザ');
+    expect(normalizeKana('ふしぎだね')).toBe('フシギダネ');
+  });
+
+  it('半角カタカナを全角カタカナへ畳み込む', () => {
+    expect(normalizeKana('ﾘｻﾞｰﾄﾞﾝ')).toBe('リザードン');
+  });
+
+  it('全角英数字を半角へ畳み込む', () => {
+    expect(normalizeKana('Ｐｉｋａ１２３')).toBe('Pika123');
+  });
+
+  it('カタカナはそのまま保つ', () => {
+    expect(normalizeKana('リザード')).toBe('リザード');
+  });
+
+  it('長音符と小書きかなを扱う', () => {
+    // 長音符（ー）はかな種別を持たないため写像対象外でそのまま残る。
+    expect(normalizeKana('ー')).toBe('ー');
+    // 小書きひらがな（ぁ U+3041 / ゃ U+3083 等）も対応する小書きカタカナへ写る。
+    expect(normalizeKana('ぁゃっ')).toBe('ァャッ');
+    expect(normalizeKana('しゃりたん')).toBe('シャリタン');
+  });
+
+  it('ASCII はそのまま保つ', () => {
+    expect(normalizeKana('Charizard')).toBe('Charizard');
+    expect(normalizeKana('riza')).toBe('riza');
   });
 });
