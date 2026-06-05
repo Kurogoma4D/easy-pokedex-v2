@@ -19,27 +19,32 @@ function formatDexNumber(id: number): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, TypeChip, FavoriteToggle],
   template: `
-    <a class="card" [routerLink]="['/detail', item().id]">
+    <div class="card-wrap">
+      <a class="card" [routerLink]="['/detail', item().id]">
+        <span class="card__dex">{{ dexNumber() }}</span>
+        <div class="card__art">
+          @if (item().imageUrl) {
+            <img [src]="item().imageUrl" [alt]="name()" loading="lazy" decoding="async" />
+          } @else {
+            <span class="card__art-fallback" aria-hidden="true">?</span>
+          }
+        </div>
+        <span class="card__name">{{ name() }}</span>
+        <span class="card__types">
+          @for (type of item().types; track type) {
+            <app-type-chip [type]="type" />
+          }
+        </span>
+      </a>
       <div class="card__fav">
         <app-favorite-toggle [pokemonId]="item().id" />
       </div>
-      <span class="card__dex">{{ dexNumber() }}</span>
-      <div class="card__art">
-        @if (item().imageUrl) {
-          <img [src]="item().imageUrl" [alt]="name()" loading="lazy" decoding="async" />
-        } @else {
-          <span class="card__art-fallback" aria-hidden="true">?</span>
-        }
-      </div>
-      <span class="card__name">{{ name() }}</span>
-      <span class="card__types">
-        @for (type of item().types; track type) {
-          <app-type-chip [type]="type" />
-        }
-      </span>
-    </a>
+    </div>
   `,
   styles: `
+    .card-wrap {
+      position: relative;
+    }
     .card {
       position: relative;
       display: flex;

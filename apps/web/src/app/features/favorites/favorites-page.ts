@@ -4,7 +4,6 @@ import type { PokemonDetailResponse } from '../detail/pokemon-detail.model';
 import type { PokemonListItem } from '../list/pokemon-list.model';
 import { PokemonCard } from '../shared/pokemon-card';
 import { FavoritesDetailCache } from './favorites-detail-cache.service';
-import { FavoriteToggle } from './favorite-toggle';
 import { FavoritesService } from './favorites.service';
 
 /** 詳細レスポンスを一覧カードが要求する形へ写像する。 */
@@ -26,7 +25,7 @@ function toListItem(detail: PokemonDetailResponse): PokemonListItem {
 @Component({
   selector: 'app-favorites-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PokemonCard, FavoriteToggle],
+  imports: [PokemonCard],
   template: `
     <section class="favorites">
       <header class="favorites__head">
@@ -41,9 +40,6 @@ function toListItem(detail: PokemonDetailResponse): PokemonListItem {
           @for (item of items(); track item.id) {
             <li class="favorites__cell">
               <app-pokemon-card [item]="item" />
-              <div class="favorites__toggle">
-                <app-favorite-toggle [pokemonId]="item.id" />
-              </div>
             </li>
           }
         </ul>
@@ -86,14 +82,6 @@ function toListItem(detail: PokemonDetailResponse): PokemonListItem {
       margin: 0;
       padding: 0;
       list-style: none;
-    }
-    .favorites__cell {
-      position: relative;
-    }
-    .favorites__toggle {
-      position: absolute;
-      top: var(--space-2);
-      right: var(--space-2);
     }
   `,
 })

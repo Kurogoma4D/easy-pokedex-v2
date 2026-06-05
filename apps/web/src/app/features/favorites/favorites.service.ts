@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../core/api-base-url';
 import { AuthService } from '../auth/auth.service';
@@ -29,10 +29,14 @@ export class FavoritesService {
   private readonly _orderedIds = signal<readonly number[]>([]);
   readonly orderedIds = this._orderedIds.asReadonly();
 
+  // 非同期書き込みの世代。ログアウトや再ログインで進め、解決済みの古い書き込みを無効化する。
+  private generation = 0;
+
   constructor() {
     // ログイン状態に追従して一覧を読み直す。ログアウト時は集合を空へ戻す。
     effect(() => {
       const user = this.auth.user();
+      this.generation++;
       if (user === null) {
         this._ids.set(new Set());
         this._orderedIds.set([]);
@@ -49,27 +53,39 @@ export class FavoritesService {
 
   /** お気に入り集合を BFF から読み直す。 */
   async reload(): Promise<void> {
+    const generation = this.generation;
     const res = await firstValueFrom(
       this.http.get<FavoritesResponse>(`${this.baseUrl}/favorites`, { withCredentials: true }),
     );
+    if (generation !== this.generation) {
+      return;
+    }
     this._orderedIds.set(res.pokemonIds);
     this._ids.set(new Set(res.pokemonIds));
   }
 
   /** お気に入りを登録する。 */
   async add(pokemonId: number): Promise<void> {
+    const generation = this.generation;
     await firstValueFrom(
       this.http.put(`${this.baseUrl}/favorites/${pokemonId}`, null, { withCredentials: true }),
     );
+    if (generation !== this.generation) {
+      return;
+    }
     this._ids.update((set) => new Set(set).add(pokemonId));
     this._orderedIds.update((ids) => (ids.includes(pokemonId) ? ids : [pokemonId, ...ids]));
   }
 
   /** お気に入りを解除する。 */
   async remove(pokemonId: number): Promise<void> {
+    const generation = this.generation;
     await firstValueFrom(
       this.http.delete(`${this.baseUrl}/favorites/${pokemonId}`, { withCredentials: true }),
     );
+    if (generation !== this.generation) {
+      return;
+    }
     this._ids.update((set) => {
       const next = new Set(set);
       next.delete(pokemonId);
@@ -77,7 +93,4 @@ export class FavoritesService {
     });
     this._orderedIds.update((ids) => ids.filter((id) => id !== pokemonId));
   }
-
-  /** 件数。一覧ページの見出し等に使う。 */
-  readonly count = computed(() => this._orderedIds().length);
 }

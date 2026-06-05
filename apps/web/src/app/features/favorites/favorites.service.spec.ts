@@ -40,7 +40,7 @@ describe('FavoritesService', () => {
     expect(service.ids().has(3)).toBe(true);
   });
 
-  it('adds a favorite optimistically after the request resolves', async () => {
+  it('adds a favorite after the request resolves', async () => {
     await login();
 
     const add = service.add(25);
