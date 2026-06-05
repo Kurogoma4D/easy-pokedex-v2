@@ -1,0 +1,33 @@
+{
+  "run_id": "issue-37-split-20260605T050205Z",
+  "issue": 37,
+  "approach": "split",
+  "started_at": "2026-06-05T05:02:05Z",
+  "pr_first_opened_at": "2026-06-05T05:05:41Z",
+  "ready_at": "2026-06-05T05:13:14Z",
+  "elapsed_seconds": 669,
+  "prs": [
+    {
+      "number": 56,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/56",
+      "opened_at": "2026-06-05T05:05:41Z",
+      "part": 1,
+      "base": "main",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    },
+    {
+      "number": 57,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/57",
+      "opened_at": "2026-06-05T05:11:54Z",
+      "part": 2,
+      "base": "issue-37-split-part1",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    }
+  ],
+  "split_count": 2,
+  "review_rounds": 2,
+  "findings_deferred": 0,
+  "notes": "Part1=BFF(cryUrl を selectCryUrl で DTO 化, PR#56, LGTM一発)。Part2=フロント再生ボタン(PR#57, base=part1, Closes #37, LGTM一発)。両 PR とも初回 LGTM で修正ターン無し。Part1 は空文字防御を最初から実装、Part2 は ogg 判定の遅延キャッシュを最初から実装(方針A が反復で修正した2点を分割実装が初手で織り込んだ=実装プロンプトに前知見を反映した交絡あり)。BFF 121 + web 62 + e2e 10 passed。"
+}
