@@ -26,6 +26,10 @@ export const ICON_PATHS = {
   close:
     'M2 2h2v2H2zM4 4h2v2H4zM6 6h2v2H6zM8 6h2v2H8zM10 4h2v2h-2zM12 2h2v2h-2z' +
     'M6 8h2v2H6zM8 8h2v2H8zM4 10h2v2H4zM10 10h2v2h-2zM2 12h2v2H2zM12 12h2v2h-2z',
+  /** 音量／鳴き声（スピーカーと音波）。左側のコーンと右側の 2 本の音波で表す。 */
+  volume:
+    'M5 6h2v4H5zM3 6h2v4H3zM7 4h2v8H7zM9 3h1v10H9z' +
+    'M11 5h1v1h-1zM12 6h1v4h-1zM11 10h1v1h-1zM13 3h1v1h-1zM14 4h1v8h-1zM13 12h1v1h-1z',
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;
