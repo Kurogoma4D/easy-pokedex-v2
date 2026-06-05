@@ -8,6 +8,7 @@ const ja = {
   'app.title': 'イージーポケモン図鑑',
   'nav.list': '一覧',
   'nav.detail': '詳細',
+  'nav.favorites': 'おきにいり',
   'nav.login': 'ログイン',
   'nav.register': 'とうろく',
   'nav.logout': 'ログアウト',
@@ -93,6 +94,15 @@ const ja = {
   'auth.error.unknown': 'しっぱいしました。もういちど おためし ください。',
   'auth.submitting': 'そうしんちゅう…',
   'auth.greeting': '{email} で ログインちゅう',
+
+  // お気に入り
+  'favorites.title': 'おきにいり',
+  'favorites.add': 'おきにいりに ついか',
+  'favorites.remove': 'おきにいりを かいじょ',
+  'favorites.empty': 'おきにいりの ポケモンは まだ いません。',
+  'favorites.loading': 'よみこみちゅう…',
+  'favorites.error': 'おきにいりの よみこみに しっぱいしました。',
+  'favorites.loginRequired': 'おきにいりを みるには ログインして ください。',
 } as const;
 
 export type MessageKey = keyof typeof ja;
@@ -103,6 +113,7 @@ const en: MessageDictionary = {
   'app.title': 'Easy Pokédex',
   'nav.list': 'List',
   'nav.detail': 'Detail',
+  'nav.favorites': 'Favorites',
   'nav.login': 'Log in',
   'nav.register': 'Sign up',
   'nav.logout': 'Log out',
@@ -188,6 +199,15 @@ const en: MessageDictionary = {
   'auth.error.unknown': 'Something went wrong. Please try again.',
   'auth.submitting': 'Submitting…',
   'auth.greeting': 'Signed in as {email}',
+
+  // Favorites
+  'favorites.title': 'Favorites',
+  'favorites.add': 'Add to favorites',
+  'favorites.remove': 'Remove from favorites',
+  'favorites.empty': "You haven't added any favorites yet.",
+  'favorites.loading': 'Loading…',
+  'favorites.error': 'Failed to load favorites.',
+  'favorites.loginRequired': 'Log in to see your favorites.',
 };
 
 export const MESSAGES: Record<Locale, MessageDictionary> = {

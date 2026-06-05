@@ -30,6 +30,15 @@ export const ICON_PATHS = {
   volume:
     'M5 6h2v4H5zM3 6h2v4H3zM7 4h2v8H7zM9 3h1v10H9z' +
     'M11 5h1v1h-1zM12 6h1v4h-1zM11 10h1v1h-1zM13 3h1v1h-1zM14 4h1v8h-1zM13 12h1v1h-1z',
+  /** お気に入り（塗りつぶしハート）。ドットグリッド上で左右対称の塗りハートを描く。 */
+  heart:
+    'M3 3h3v1H3zM10 3h3v1h-3zM2 4h5v1H2zM9 4h5v1H9zM2 5h12v1H2zM2 6h12v1H2z' +
+    'M3 7h10v1H3zM4 8h8v1H4zM5 9h6v1H5zM6 10h4v1H6zM7 11h2v1H7z',
+  /** お気に入り（中抜きハート）。`heart` と同じ外形を輪郭線として描く。 */
+  'heart-outline':
+    'M3 3h3v1H3zM10 3h3v1h-3zM2 4h1v3H2zM6 4h1v1H6zM9 4h1v1H9zM13 4h1v3h-1z' +
+    'M2 7h1v1H2zM13 7h1v1h-1zM3 8h1v1H3zM12 8h1v1h-1zM4 9h1v1H4zM11 9h1v1h-1z' +
+    'M5 10h1v1H5zM10 10h1v1h-1zM6 11h1v1H6zM9 11h1v1H9zM7 12h2v1H7z',
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

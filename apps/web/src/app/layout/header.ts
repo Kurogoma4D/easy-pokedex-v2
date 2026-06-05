@@ -24,6 +24,11 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       </a>
       <nav class="app-header__nav">
         <a routerLink="/list" routerLinkActive="is-active">{{ messages()['nav.list'] }}</a>
+        @if (user()) {
+          <a routerLink="/favorites" routerLinkActive="is-active">{{
+            messages()['nav.favorites']
+          }}</a>
+        }
       </nav>
       @if (!initializing()) {
         <div class="app-header__auth">

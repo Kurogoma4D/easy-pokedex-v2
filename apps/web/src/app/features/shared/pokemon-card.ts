@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
+import { FavoriteButton } from '../favorites/favorite-button';
 import { PokemonListItem } from '../list/pokemon-list.model';
 import { TypeChip } from './type-chip';
 
@@ -16,10 +17,11 @@ function formatDexNumber(id: number): string {
 @Component({
   selector: 'app-pokemon-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TypeChip],
+  imports: [RouterLink, TypeChip, FavoriteButton],
   template: `
     <a class="card" [routerLink]="['/detail', item().id]">
       <span class="card__dex">{{ dexNumber() }}</span>
+      <app-favorite-button class="card__favorite" [pokemonId]="item().id" />
       <div class="card__art">
         @if (item().imageUrl) {
           <img [src]="item().imageUrl" [alt]="name()" loading="lazy" decoding="async" />
@@ -37,6 +39,7 @@ function formatDexNumber(id: number): string {
   `,
   styles: `
     .card {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -62,6 +65,14 @@ function formatDexNumber(id: number): string {
       font-family: var(--font-display);
       font-size: var(--font-size-display-sm);
       color: var(--color-text-muted);
+    }
+    /* Pinned to the card's top-right corner, above the link surface so its own
+     * click handler (which stops propagation) wins over the card navigation. */
+    .card__favorite {
+      position: absolute;
+      top: var(--space-2);
+      right: var(--space-2);
+      z-index: 1;
     }
     .card__art {
       display: flex;
