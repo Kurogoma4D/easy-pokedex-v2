@@ -12,6 +12,8 @@ import type {
   PokemonDetail,
   PokemonStatDetail,
   PokemonTypeDetail,
+  PokemonTypeMatchupGroup,
+  PokemonTypeMatchups,
 } from './types.js';
 
 /**
@@ -68,6 +70,105 @@ function toTypeDetails(
         name: upstream !== undefined ? buildLocalizedName(upstream.names, id) : { ja: id, en: id },
       };
     });
+}
+
+const EMPTY_DAMAGE_RELATIONS = {
+  double_damage_from: [] as const,
+  half_damage_from: [] as const,
+  no_damage_from: [] as const,
+} as const;
+
+/** 上流が damage_relations を欠く場合（旧フィクスチャや想定外レスポンス）でも空の関係で扱えるようにする。 */
+function damageRelationsOf(type: PokeApiType): PokeApiType['damage_relations'] {
+  return type.damage_relations ?? EMPTY_DAMAGE_RELATIONS;
+}
+
+/**
+ * 1 つの攻撃側タイプ A が、防御側タイプ 1 つに対して持つ被ダメージ係数を返す。
+ * `double_damage_from` に A があれば 2、`half_damage_from` なら 0.5、`no_damage_from` なら 0、
+ * いずれにも無ければ等倍の 1。`past_damage_relations` は参照しない。
+ */
+function damageFactorAgainstType(defenderType: PokeApiType, attackingTypeName: string): number {
+  const { double_damage_from, half_damage_from, no_damage_from } = damageRelationsOf(defenderType);
+  if (no_damage_from.some((entry) => entry.name === attackingTypeName)) {
+    return 0;
+  }
+  if (double_damage_from.some((entry) => entry.name === attackingTypeName)) {
+    return 2;
+  }
+  if (half_damage_from.some((entry) => entry.name === attackingTypeName)) {
+    return 0.5;
+  }
+  return 1;
+}
+
+/**
+ * ポケモンのタイプ構成に対する被ダメージ相性を算出する。複合タイプは各防御タイプの被ダメ係数を
+ * 掛け合わせ、最終倍率（×4 / ×2 / ×0.5 / ×0.25 / ×0 等）で攻撃側タイプを分類する。等倍（×1）は含めない。
+ *
+ * 攻撃側タイプの母集合は防御側タイプの `damage_relations`（double/half/no_damage_from）に現れる
+ * タイプの和集合とする。これら以外の攻撃タイプはすべての防御タイプに対し等倍であり、相性に現れないため。
+ * 表示名は `typeByName` の多言語名から解決し、欠ける場合は識別子へフォールバックする。
+ */
+export function computeTypeMatchups(
+  defenderTypeNames: readonly string[],
+  typeByName: ReadonlyMap<string, PokeApiType>,
+): PokemonTypeMatchups {
+  const defenderTypes = defenderTypeNames
+    .map((name) => typeByName.get(name))
+    .filter((type): type is PokeApiType => type !== undefined);
+
+  // 攻撃側タイプの母集合（等倍以外になりうる候補）を防御側の damage_relations から集める。
+  const attackingTypeNames = new Set<string>();
+  for (const defenderType of defenderTypes) {
+    const { double_damage_from, half_damage_from, no_damage_from } =
+      damageRelationsOf(defenderType);
+    for (const entry of [...double_damage_from, ...half_damage_from, ...no_damage_from]) {
+      attackingTypeNames.add(entry.name);
+    }
+  }
+
+  const byMultiplier = new Map<number, string[]>();
+  for (const attackingTypeName of [...attackingTypeNames].sort()) {
+    const multiplier = defenderTypes.reduce(
+      (acc, defenderType) => acc * damageFactorAgainstType(defenderType, attackingTypeName),
+      1,
+    );
+    if (multiplier === 1) {
+      continue;
+    }
+    const bucket = byMultiplier.get(multiplier);
+    if (bucket === undefined) {
+      byMultiplier.set(multiplier, [attackingTypeName]);
+    } else {
+      bucket.push(attackingTypeName);
+    }
+  }
+
+  const toGroups = (predicate: (multiplier: number) => boolean): PokemonTypeMatchupGroup[] =>
+    [...byMultiplier.entries()]
+      .filter(([multiplier]) => predicate(multiplier))
+      // 倍率の降順（弱点は ×4 → ×2、耐性は ×0.5 → ×0.25）。
+      .sort(([a], [b]) => b - a)
+      .map(([multiplier, typeNames]) => ({
+        multiplier,
+        types: typeNames.map((name) => {
+          const upstream = typeByName.get(name);
+          return {
+            id: name,
+            name:
+              upstream !== undefined
+                ? buildLocalizedName(upstream.names, name)
+                : { ja: name, en: name },
+          };
+        }),
+      }));
+
+  return {
+    weaknesses: toGroups((multiplier) => multiplier > 1),
+    resistances: toGroups((multiplier) => multiplier > 0 && multiplier < 1),
+    immunities: toGroups((multiplier) => multiplier === 0),
+  };
 }
 
 function toAbilityDetails(
@@ -155,6 +256,26 @@ export async function fetchPokemonDetail(
     }
   });
 
+  // タイプ相性に現れる攻撃側タイプ（防御タイプの damage_relations 参照先）の多言語名を解決するため、
+  // 自タイプの取得後にまだ未取得のタイプを追補する。これらは自タイプの被ダメ関係に現れる集合に限定される。
+  const relatedTypeNames = new Set<string>();
+  for (const name of typeNames) {
+    const upstream = typeByName.get(name);
+    if (upstream === undefined) {
+      continue;
+    }
+    const { double_damage_from, half_damage_from, no_damage_from } = damageRelationsOf(upstream);
+    for (const entry of [...double_damage_from, ...half_damage_from, ...no_damage_from]) {
+      if (!typeByName.has(entry.name)) {
+        relatedTypeNames.add(entry.name);
+      }
+    }
+  }
+
+  await mapWithConcurrency([...relatedTypeNames], detailConcurrency, async (name) => {
+    typeByName.set(name, await client.fetchType(name, options));
+  });
+
   return {
     id: pokemon.id,
     name: buildLocalizedName(species.names, pokemon.name),
@@ -162,6 +283,7 @@ export async function fetchPokemonDetail(
     height: pokemon.height,
     weight: pokemon.weight,
     types: toTypeDetails(pokemon, typeByName),
+    typeMatchups: computeTypeMatchups(typeNames, typeByName),
     stats: toStats(pokemon),
     abilities: toAbilityDetails(pokemon, abilityByName),
     evolutionChain: toEvolutionNode(evolutionChain.chain, pokemonById, speciesById),

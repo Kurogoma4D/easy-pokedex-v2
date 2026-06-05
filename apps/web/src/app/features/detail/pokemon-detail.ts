@@ -7,7 +7,7 @@ import { MessageKey } from '../../i18n/messages';
 import { Icon } from '../../shared/icon/icon';
 import { PokemonApiService } from '../list/pokemon-api.service';
 import { TypeChip } from '../shared/type-chip';
-import type { EvolutionNode } from './pokemon-detail.model';
+import type { EvolutionNode, PokemonTypeMatchupGroup } from './pokemon-detail.model';
 
 /** 種族値バーの上限。単一ステータスの取りうる上限に合わせて 0–100% を割り当てる。 */
 const STAT_MAX = 255;
@@ -38,6 +38,13 @@ interface StatRow {
   readonly label: string;
   readonly base: number;
   readonly percent: number;
+}
+
+/** タイプ相性パネルの 1 区分（弱点 / 耐性 / 無効）。`label` は選択ロケールの見出し。 */
+interface MatchupSection {
+  readonly key: 'weaknesses' | 'resistances' | 'immunities';
+  readonly label: string;
+  readonly groups: readonly PokemonTypeMatchupGroup[];
 }
 
 /**
@@ -100,6 +107,29 @@ interface StatRow {
             </div>
           </dl>
         </header>
+
+        <section class="detail__panel">
+          <h2 class="detail__heading">{{ messages()['detail.matchups'] }}</h2>
+          <dl class="matchups">
+            @for (section of matchupSections(); track section.key) {
+              <div class="matchups__group">
+                <dt class="matchups__label">{{ section.label }}</dt>
+                <dd class="matchups__items">
+                  @for (group of section.groups; track group.multiplier) {
+                    <span class="matchups__cell">
+                      <span class="matchups__multiplier">×{{ group.multiplier }}</span>
+                      @for (type of group.types; track type.id) {
+                        <app-type-chip [type]="type.id" />
+                      }
+                    </span>
+                  } @empty {
+                    <span class="matchups__none">{{ messages()['detail.matchupsNone'] }}</span>
+                  }
+                </dd>
+              </div>
+            }
+          </dl>
+        </section>
 
         <section class="detail__panel">
           <h2 class="detail__heading">{{ messages()['detail.stats'] }}</h2>
@@ -178,6 +208,9 @@ interface StatRow {
     .stats__value,
     .stats__total,
     .abilities__hidden,
+    .matchups__label,
+    .matchups__multiplier,
+    .matchups__none,
     .evo__name {
       font-family: var(--font-display);
       font-size: var(--font-size-display-sm);
@@ -343,20 +376,58 @@ interface StatRow {
       flex-wrap: wrap;
       gap: var(--space-2);
     }
+    /* Shared recessed screen tile for ability pills and matchup multiplier badges. */
+    .abilities__item,
+    .matchups__multiplier {
+      background-color: var(--color-screen);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-chip);
+    }
     .abilities__item {
       display: flex;
       align-items: center;
       gap: var(--space-2);
       padding: var(--space-2) var(--space-3);
-      background-color: var(--color-screen);
-      border: var(--border-width-chunky) solid var(--color-border);
-      border-radius: var(--radius-chip);
     }
     .abilities__hidden {
       color: var(--color-text-inverse);
       background-color: var(--color-text-muted);
       padding: 0 var(--space-1);
       border-radius: var(--radius-pixel);
+    }
+
+    .matchups,
+    .matchups__group {
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+    }
+    .matchups {
+      gap: var(--space-3);
+    }
+    .matchups__group {
+      gap: var(--space-2);
+    }
+    .matchups__label,
+    .matchups__none {
+      color: var(--color-text-muted);
+    }
+    /* Each cell groups a multiplier badge with the chips it applies to so x4 / x0.25 reads as one unit. */
+    .matchups__items,
+    .matchups__cell {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .matchups__items {
+      gap: var(--space-3);
+    }
+    .matchups__cell {
+      gap: var(--space-1);
+    }
+    .matchups__multiplier {
+      color: var(--color-text);
+      padding: var(--space-1) var(--space-2);
     }
 
     .evo {
@@ -457,6 +528,21 @@ export class PokemonDetail {
         percent: Math.min(100, (stat.base / STAT_MAX) * 100),
       };
     });
+  });
+
+  /** タイプ相性の 3 区分（弱点 / 耐性 / 無効）を表示順に並べた view-model。見出しは選択ロケールへ追従する。 */
+  protected readonly matchupSections = computed<readonly MatchupSection[]>(() => {
+    const detail = this.data();
+    if (!detail) {
+      return [];
+    }
+    const messages = this.messages();
+    const { weaknesses, resistances, immunities } = detail.typeMatchups;
+    return [
+      { key: 'weaknesses', label: messages['detail.weaknesses'], groups: weaknesses },
+      { key: 'resistances', label: messages['detail.resistances'], groups: resistances },
+      { key: 'immunities', label: messages['detail.immunities'], groups: immunities },
+    ];
   });
 
   protected localize(name: LocalizedName): string {

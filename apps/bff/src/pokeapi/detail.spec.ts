@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { fetchPokemonDetail } from './detail.js';
+import { computeTypeMatchups, fetchPokemonDetail } from './detail.js';
+import type { PokeApiType, PokeApiTypeDamageRelations } from './types.js';
 
 const UPSTREAM = 'https://upstream.test/api/v2';
 
@@ -72,6 +73,39 @@ const FIXTURES = [BULBASAUR, IVYSAUR, VENUSAUR] as const;
 const TYPE_NAMES: Record<string, { ja: string; en: string }> = {
   grass: { ja: 'くさ', en: 'grass' },
   poison: { ja: 'どく', en: 'poison' },
+  fire: { ja: 'ほのお', en: 'fire' },
+  ice: { ja: 'こおり', en: 'ice' },
+  flying: { ja: 'ひこう', en: 'flying' },
+  psychic: { ja: 'エスパー', en: 'psychic' },
+  water: { ja: 'みず', en: 'water' },
+  ground: { ja: 'じめん', en: 'ground' },
+  fighting: { ja: 'かくとう', en: 'fighting' },
+  fairy: { ja: 'フェアリー', en: 'fairy' },
+};
+
+function names(name: string): readonly { name: string; language: { name: string; url: string } }[] {
+  return [{ name, language: { name: 'en', url: '' } }];
+}
+
+function ref(name: string): { name: string; url: string } {
+  return { name, url: '' };
+}
+
+/**
+ * テスト用の被ダメージ関係。grass/poison は本物の相性に近い値を与え、複合タイプの倍率合成
+ * （grass×poison で ×4 / ×0.25 などが出る）を検証できるようにする。
+ */
+const DAMAGE_RELATIONS: Record<string, PokeApiTypeDamageRelations> = {
+  grass: {
+    double_damage_from: [ref('fire'), ref('ice'), ref('flying'), ref('poison')],
+    half_damage_from: [ref('water'), ref('grass'), ref('ground')],
+    no_damage_from: [],
+  },
+  poison: {
+    double_damage_from: [ref('ground'), ref('psychic')],
+    half_damage_from: [ref('grass'), ref('fighting'), ref('poison'), ref('fairy')],
+    no_damage_from: [],
+  },
 };
 
 const ABILITY_NAMES: Record<string, { ja: string; en: string }> = {
@@ -160,6 +194,11 @@ function makeFetchImpl() {
           { name: t.ja, language: { name: 'ja-Hrkt', url: '' } },
           { name: t.en, language: { name: 'en', url: '' } },
         ],
+        damage_relations: DAMAGE_RELATIONS[key] ?? {
+          double_damage_from: [],
+          half_damage_from: [],
+          no_damage_from: [],
+        },
         pokemon: [],
       });
     }
@@ -241,6 +280,40 @@ describe('fetchPokemonDetail', () => {
     ]);
   });
 
+  it('composes type matchups for a dual-type pokemon with localized attacking-type names', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const detail = await fetchPokemonDetail(client, 'bulbasaur');
+
+    // grass×poison: fire/ice/flying/psychic は ×2、water/fighting/fairy は ×0.5、grass は ×0.25、無効なし。
+    expect(detail.typeMatchups.weaknesses).toEqual([
+      {
+        multiplier: 2,
+        types: [
+          { id: 'fire', name: { ja: 'ほのお', en: 'fire' } },
+          { id: 'flying', name: { ja: 'ひこう', en: 'flying' } },
+          { id: 'ice', name: { ja: 'こおり', en: 'ice' } },
+          { id: 'psychic', name: { ja: 'エスパー', en: 'psychic' } },
+        ],
+      },
+    ]);
+    expect(detail.typeMatchups.resistances).toEqual([
+      {
+        multiplier: 0.5,
+        types: [
+          { id: 'fairy', name: { ja: 'フェアリー', en: 'fairy' } },
+          { id: 'fighting', name: { ja: 'かくとう', en: 'fighting' } },
+          { id: 'water', name: { ja: 'みず', en: 'water' } },
+        ],
+      },
+      {
+        multiplier: 0.25,
+        types: [{ id: 'grass', name: { ja: 'くさ', en: 'grass' } }],
+      },
+    ]);
+    expect(detail.typeMatchups.immunities).toEqual([]);
+  });
+
   it('builds the full evolution chain tree with localized names and images', async () => {
     const client = makeClient(makeFetchImpl());
 
@@ -314,7 +387,17 @@ describe('fetchPokemonDetail', () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
       const path = new URL(String(input)).pathname;
       if (/\/type\//.test(path)) {
-        return jsonResponse({ id: 1, name: 'mystery', names: [], pokemon: [] });
+        return jsonResponse({
+          id: 1,
+          name: 'mysterytype',
+          names: [],
+          damage_relations: {
+            double_damage_from: [],
+            half_damage_from: [],
+            no_damage_from: [],
+          },
+          pokemon: [],
+        });
       }
       if (/\/ability\//.test(path)) {
         return jsonResponse({ id: 1, name: 'mystery', names: [] });
@@ -370,5 +453,138 @@ describe('fetchPokemonDetail', () => {
     expect(detail.imageUrl).toBeNull();
     expect(detail.evolutionChain.id).toBe(99);
     expect(detail.evolutionChain.evolvesTo).toEqual([]);
+  });
+});
+
+function makeType(name: string, relations: Partial<PokeApiTypeDamageRelations> = {}): PokeApiType {
+  return {
+    id: 1,
+    name,
+    names: names(name),
+    damage_relations: {
+      double_damage_from: relations.double_damage_from ?? [],
+      half_damage_from: relations.half_damage_from ?? [],
+      no_damage_from: relations.no_damage_from ?? [],
+    },
+    pokemon: [],
+  };
+}
+
+function typeMap(...types: readonly PokeApiType[]): Map<string, PokeApiType> {
+  return new Map(types.map((type) => [type.name, type] as const));
+}
+
+describe('computeTypeMatchups', () => {
+  it('classifies single-type relations into x2 / x0.5 / x0', () => {
+    // electric: 弱点=ground(×2)、耐性=electric/flying/steel(×0.5)、無効なし。flying は無効を持つ。
+    const ground = makeType('ground', { no_damage_from: [ref('electric')] });
+    const flying = makeType('flying', {
+      double_damage_from: [ref('electric')],
+      no_damage_from: [ref('ground')],
+    });
+    const electric = makeType('electric', {
+      double_damage_from: [ref('ground')],
+      half_damage_from: [ref('electric'), ref('flying')],
+      no_damage_from: [],
+    });
+
+    const matchups = computeTypeMatchups(['electric'], typeMap(electric, ground, flying));
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 2, types: [{ id: 'ground', name: { ja: 'ground', en: 'ground' } }] },
+    ]);
+    expect(matchups.resistances).toEqual([
+      {
+        multiplier: 0.5,
+        types: [
+          { id: 'electric', name: { ja: 'electric', en: 'electric' } },
+          { id: 'flying', name: { ja: 'flying', en: 'flying' } },
+        ],
+      },
+    ]);
+    expect(matchups.immunities).toEqual([]);
+
+    // ground 単体: electric を無効化する（×0）。
+    const groundMatchups = computeTypeMatchups(['ground'], typeMap(ground, electric));
+    expect(groundMatchups.immunities).toEqual([
+      { multiplier: 0, types: [{ id: 'electric', name: { ja: 'electric', en: 'electric' } }] },
+    ]);
+  });
+
+  it('multiplies factors across a dual type to yield x4 and x0.25', () => {
+    // 防御 A は fire に ×2、water に ×0.5。防御 B も fire に ×2、water に ×0.5。
+    // 合成すると fire は ×4（弱点）、water は ×0.25（耐性）。
+    const a = makeType('a', {
+      double_damage_from: [ref('fire')],
+      half_damage_from: [ref('water')],
+    });
+    const b = makeType('b', {
+      double_damage_from: [ref('fire')],
+      half_damage_from: [ref('water')],
+    });
+    const fire = makeType('fire');
+    const water = makeType('water');
+
+    const matchups = computeTypeMatchups(['a', 'b'], typeMap(a, b, fire, water));
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 4, types: [{ id: 'fire', name: { ja: 'fire', en: 'fire' } }] },
+    ]);
+    expect(matchups.resistances).toEqual([
+      { multiplier: 0.25, types: [{ id: 'water', name: { ja: 'water', en: 'water' } }] },
+    ]);
+    expect(matchups.immunities).toEqual([]);
+  });
+
+  it('cancels opposing factors to neutral (x1) and excludes them', () => {
+    // 防御 A は fire に ×2、防御 B は fire に ×0.5 → 合成 ×1 のため相性に現れない。
+    const a = makeType('a', { double_damage_from: [ref('fire')] });
+    const b = makeType('b', { half_damage_from: [ref('fire')] });
+    const fire = makeType('fire');
+
+    const matchups = computeTypeMatchups(['a', 'b'], typeMap(a, b, fire));
+
+    expect(matchups.weaknesses).toEqual([]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([]);
+  });
+
+  it('keeps immunity (x0) even when another type would multiply it up', () => {
+    // 防御 A は ghost を無効化（×0）、防御 B は ghost に ×2。0×2=0 のため無効のまま。
+    const a = makeType('a', { no_damage_from: [ref('ghost')] });
+    const b = makeType('b', { double_damage_from: [ref('ghost')] });
+    const ghost = makeType('ghost');
+
+    const matchups = computeTypeMatchups(['a', 'b'], typeMap(a, b, ghost));
+
+    expect(matchups.immunities).toEqual([
+      { multiplier: 0, types: [{ id: 'ghost', name: { ja: 'ghost', en: 'ghost' } }] },
+    ]);
+    expect(matchups.weaknesses).toEqual([]);
+  });
+
+  it('orders weakness groups high-to-low and falls back names to the identifier', () => {
+    // fire は ×4、grass は ×2 の弱点。upstream 名が無い grass は識別子へフォールバックする。
+    const a = makeType('a', {
+      double_damage_from: [ref('fire'), ref('grass')],
+    });
+    const b = makeType('b', {
+      double_damage_from: [ref('fire')],
+    });
+    const fire = makeType('fire');
+    const grassWithoutNames: PokeApiType = {
+      id: 2,
+      name: 'grass',
+      names: [],
+      damage_relations: { double_damage_from: [], half_damage_from: [], no_damage_from: [] },
+      pokemon: [],
+    };
+
+    const matchups = computeTypeMatchups(['a', 'b'], typeMap(a, b, fire, grassWithoutNames));
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 4, types: [{ id: 'fire', name: { ja: 'fire', en: 'fire' } }] },
+      { multiplier: 2, types: [{ id: 'grass', name: { ja: 'grass', en: 'grass' } }] },
+    ]);
   });
 });

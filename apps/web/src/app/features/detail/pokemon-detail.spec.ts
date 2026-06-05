@@ -18,6 +18,28 @@ const BULBASAUR: PokemonDetailResponse = {
     { id: 'grass', name: { ja: 'くさ', en: 'Grass' } },
     { id: 'poison', name: { ja: 'どく', en: 'Poison' } },
   ],
+  typeMatchups: {
+    weaknesses: [
+      {
+        multiplier: 2,
+        types: [
+          { id: 'fire', name: { ja: 'ほのお', en: 'Fire' } },
+          { id: 'psychic', name: { ja: 'エスパー', en: 'Psychic' } },
+        ],
+      },
+    ],
+    resistances: [
+      {
+        multiplier: 0.25,
+        types: [{ id: 'grass', name: { ja: 'くさ', en: 'Grass' } }],
+      },
+      {
+        multiplier: 0.5,
+        types: [{ id: 'water', name: { ja: 'みず', en: 'Water' } }],
+      },
+    ],
+    immunities: [],
+  },
   stats: [
     { id: 'hp', base: 45 },
     { id: 'attack', base: 49 },
@@ -121,6 +143,48 @@ describe('PokemonDetail', () => {
     expect(el.querySelectorAll('.stats__row').length).toBe(6);
     expect(el.querySelectorAll('.abilities__item').length).toBe(2);
     expect(el.querySelectorAll('.evo__node').length).toBe(3);
+  });
+
+  it('renders weakness/resistance/immunity groups with multipliers and localized chips', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    const groups = el.querySelectorAll('.matchups__group');
+    expect(groups.length).toBe(3);
+
+    const weaknesses = groups[0] as HTMLElement;
+    expect(weaknesses.textContent).toContain('じゃくてん');
+    expect(weaknesses.textContent).toContain('×2');
+    expect(weaknesses.querySelectorAll('app-type-chip').length).toBe(2);
+    // 攻撃側タイプ名も選択ロケール（既定 ja）で出る。
+    expect(weaknesses.textContent).toContain('ほのお');
+    expect(weaknesses.textContent).toContain('エスパー');
+
+    const resistances = groups[1] as HTMLElement;
+    expect(resistances.textContent).toContain('×0.25');
+    expect(resistances.textContent).toContain('×0.5');
+
+    // 無効グループは空なので「なし」を出す。
+    const immunities = groups[2] as HTMLElement;
+    expect(immunities.querySelector('.matchups__none')).toBeTruthy();
+  });
+
+  it('localizes matchup attacking-type names when the locale changes', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.matchups')?.textContent).toContain('ほのお');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    const matchups = el.querySelector('.matchups') as HTMLElement;
+    expect(matchups.textContent).toContain('Fire');
+    expect(matchups.textContent).toContain('Psychic');
+    expect(matchups.textContent).toContain('Weak to');
+    expect(matchups.textContent).toContain('×2');
   });
 
   it('marks the hidden ability', async () => {

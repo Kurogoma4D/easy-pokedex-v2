@@ -135,11 +135,23 @@ export interface PokeApiEvolutionChain {
   readonly chain: PokeApiEvolutionChainLink;
 }
 
+/**
+ * `/type/{id|name}` の `damage_relations`。各配列は「攻撃側タイプ → このタイプ」の被ダメージ関係を表す。
+ * `double_damage_from` はこのタイプに 2 倍で通る攻撃タイプ、`half_damage_from` は 0.5 倍、
+ * `no_damage_from` は無効。被ダメ倍率の算出にはこの 3 配列のみ用い、`past_damage_relations` は対象外。
+ */
+export interface PokeApiTypeDamageRelations {
+  readonly double_damage_from: readonly PokeApiNamedResource[];
+  readonly half_damage_from: readonly PokeApiNamedResource[];
+  readonly no_damage_from: readonly PokeApiNamedResource[];
+}
+
 /** `/type/{id|name}` のレスポンス。 */
 export interface PokeApiType {
   readonly id: number;
   readonly name: string;
   readonly names: readonly PokeApiName[];
+  readonly damage_relations: PokeApiTypeDamageRelations;
   readonly pokemon: readonly {
     readonly slot: number;
     readonly pokemon: PokeApiNamedResource;
@@ -174,6 +186,41 @@ export interface PokemonTypeDetail {
   readonly id: string;
   /** ja/en の表示名。 */
   readonly name: LocalizedName;
+}
+
+/**
+ * このポケモンに対して 1 倍以外の被ダメージ倍率を持つ攻撃側タイプ 1 件。
+ * `id` は英語のタイプ識別子、`name` は ja/en の表示名。倍率は所属する `PokemonTypeMatchupGroup.multiplier` を参照する。
+ */
+export interface PokemonTypeMatchupType {
+  /** 攻撃側タイプの英語識別子（例: `fire`）。 */
+  readonly id: string;
+  /** ja/en の表示名。 */
+  readonly name: LocalizedName;
+}
+
+/**
+ * 被ダメージ倍率ごとに分類した攻撃側タイプの集合。複合タイプは各タイプの被ダメ倍率を掛け合わせた
+ * 最終倍率（×4 / ×2 / ×0.5 / ×0.25 / ×0 等）で分類する。等倍（×1）のタイプは含めない。
+ */
+export interface PokemonTypeMatchupGroup {
+  /** 被ダメージ倍率（例: 4, 2, 0.5, 0.25, 0）。 */
+  readonly multiplier: number;
+  /** この倍率になる攻撃側タイプ（タイプ識別子の昇順）。 */
+  readonly types: readonly PokemonTypeMatchupType[];
+}
+
+/**
+ * タイプ相性。ポケモンのタイプ構成に対する被ダメージ倍率を BFF 側で算出し、倍率ごとに分類する。
+ * 弱点（倍率 > 1）・耐性（0 < 倍率 < 1）・無効（倍率 = 0）を表示するための DTO。
+ */
+export interface PokemonTypeMatchups {
+  /** 倍率が 1 より大きいグループ（弱点）。倍率の降順（×4 → ×2）。 */
+  readonly weaknesses: readonly PokemonTypeMatchupGroup[];
+  /** 倍率が 0 より大きく 1 未満のグループ（耐性）。倍率の降順（×0.5 → ×0.25）。 */
+  readonly resistances: readonly PokemonTypeMatchupGroup[];
+  /** 倍率が 0 のグループ（無効）。最大 1 件。 */
+  readonly immunities: readonly PokemonTypeMatchupGroup[];
 }
 
 /** 特性。`id` は英語の特性識別子、`name` は ja/en の表示名、`isHidden` は隠れ特性か。 */
@@ -223,6 +270,8 @@ export interface PokemonDetail {
   readonly weight: number;
   /** タイプ（slot 昇順、多言語名付き）。 */
   readonly types: readonly PokemonTypeDetail[];
+  /** タイプ構成から算出した被ダメージ相性（弱点 / 耐性 / 無効）。 */
+  readonly typeMatchups: PokemonTypeMatchups;
   /** ステータス（上流の並び順を保持）。 */
   readonly stats: readonly PokemonStatDetail[];
   /** 特性（slot 昇順、多言語名付き）。 */
