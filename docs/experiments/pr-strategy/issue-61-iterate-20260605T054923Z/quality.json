@@ -1,0 +1,43 @@
+{
+  "issue": 61,
+  "approach": "iterate",
+  "prs": [65],
+  "scored_by": "isolated-subagent",
+  "total_additions": 1565,
+  "total_deletions": 25,
+  "scores": {
+    "correctness": 5,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 100.0,
+  "findings": [
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.ts:~1428",
+      "note": "`.detail__flavor` uses `white-space: pre-line`, but `formatFlavorText` collapses all newlines/form-feeds to single spaces, so pre-line never has multi-line content to act on. Harmless but effectively dead styling intent."
+    },
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.ts:1259,1583",
+      "note": "`formatMultiplier` exists both as a module-level function and as a thin protected method wrapper for template binding. Acceptable (templates can't call module functions directly), but slightly redundant."
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/pokeapi/detail.ts:~601",
+      "note": "Missing attacker types are fetched in a second concurrency pass after the primary type fetch; sequential round-trips add latency for dual-type Pokémon. Correct, just not maximally parallel. Likely intentional given the union must be known first (documented in comment)."
+    }
+  ],
+  "verdict": "全 Acceptance Criteria を満たす完成度の高い実装。図鑑情報(整形・ja/en・en フォールバック)、タイプ相性(単/複合×4/×0.25・無効・等倍除外・past_damage_relations 非対象・名前ローカライズ/識別子フォールバック)、鳴き声(latest→legacy→null・直接 Audio・穏当なフォールバック・アクセシブルラベル)がいずれも正しく、言語切替にも追従する。BFF/web の Vitest と Playwright e2e がエッジケースまで網羅し、Angular 21 のシグナル/standalone/新制御フロー/strict TS の慣習に沿う。指摘は軽微な冗長性のみで実害なし。",
+  "metrics_cross_check": {
+    "pr_opened_at": "2026-06-05T06:07:53Z",
+    "ready_at": "2026-06-05T06:10:03Z",
+    "elapsed_seconds": 130,
+    "review_rounds": 1,
+    "elapsed_source": "pr_records",
+    "note": "metrics.json と一致（差異なし）。"
+  }
+}

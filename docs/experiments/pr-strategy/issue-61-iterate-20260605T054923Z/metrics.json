@@ -1,0 +1,24 @@
+{
+  "run_id": "issue-61-iterate-20260605T054923Z",
+  "issue": 61,
+  "approach": "iterate",
+  "started_at_self_reported": "2026-06-05T05:49:23Z",
+  "pr_opened_at": "2026-06-05T06:07:53Z",
+  "ready_at": "2026-06-05T06:10:03Z",
+  "elapsed_seconds": 130,
+  "elapsed_source": "pr_records",
+  "prs": [
+    {
+      "number": 65,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/65",
+      "opened_at": "2026-06-05T06:07:53Z",
+      "part": 1,
+      "review_rounds": 1,
+      "findings_deferred": 0
+    }
+  ],
+  "split_count": 1,
+  "review_rounds": 1,
+  "findings_deferred": 0,
+  "notes": "方針A（反復セルフレビュー）。実装は github-issue-implementer、レビューは code-reviewer に独立委譲。round=1 で LGTM（要修正の指摘なし、非ブロッキングの低重要度メモ1件のみ）。elapsed_seconds は PR の createdAt〜ready runlog コメント createdAt から集計。"
+}
