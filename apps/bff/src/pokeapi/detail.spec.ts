@@ -2,12 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
 import { computeTypeMatchups, fetchPokemonDetail } from './detail.js';
-import { buildLocalizedFlavorText, buildLocalizedGenus, formatFlavorText } from './localization.js';
+import {
+  buildLocalizedFlavorText,
+  buildLocalizedGenus,
+  formatFlavorText,
+  selectCryUrl,
+} from './localization.js';
 import type {
   PokeApiFlavorTextEntry,
   PokeApiGenus,
   PokeApiName,
   PokeApiNamedResource,
+  PokeApiPokemon,
   PokeApiType,
 } from './types.js';
 
@@ -30,6 +36,7 @@ interface PokemonFixture {
   readonly stats: readonly { readonly name: string; readonly base: number }[];
   readonly artwork?: string | null;
   readonly frontDefault?: string | null;
+  readonly cries?: { readonly latest?: string | null; readonly legacy?: string | null };
   readonly flavorTextEntries?: readonly {
     readonly flavorText: string;
     readonly language: string;
@@ -58,6 +65,10 @@ const BULBASAUR: PokemonFixture = {
   ],
   artwork: 'https://img.test/artwork/1.png',
   frontDefault: 'https://img.test/sprite/1.png',
+  cries: {
+    latest: 'https://cries.test/latest/1.ogg',
+    legacy: 'https://cries.test/legacy/1.ogg',
+  },
   flavorTextEntries: [
     // 同一言語の複数バージョン。最新側（最後の出現）が代表として選ばれることを確認するため、
     // 古いバージョンを先に、新しいバージョンを後に置く。
@@ -156,6 +167,9 @@ function pokemonBody(f: PokemonFixture): unknown {
       front_shiny: null,
       other: { 'official-artwork': { front_default: f.artwork ?? null } },
     },
+    ...(f.cries !== undefined
+      ? { cries: { latest: f.cries.latest ?? null, legacy: f.cries.legacy ?? null } }
+      : {}),
     species: { name: f.name, url: `${UPSTREAM}/pokemon-species/${f.id}/` },
   };
 }
@@ -282,6 +296,7 @@ describe('fetchPokemonDetail', () => {
     expect(detail.id).toBe(1);
     expect(detail.name).toEqual({ ja: 'フシギダネ', en: 'Bulbasaur' });
     expect(detail.imageUrl).toBe('https://img.test/artwork/1.png');
+    expect(detail.cryUrl).toBe('https://cries.test/latest/1.ogg');
     expect(detail.height).toBe(7);
     expect(detail.weight).toBe(69);
 
@@ -695,5 +710,41 @@ describe('buildLocalizedGenus', () => {
   it('tolerates undefined or empty genera and uses the fallback', () => {
     expect(buildLocalizedGenus(undefined)).toEqual({ ja: '', en: '' });
     expect(buildLocalizedGenus([], 'unknown')).toEqual({ ja: 'unknown', en: 'unknown' });
+  });
+});
+
+/** cries 以外のフィールドは selectCryUrl の対象外なので、最小限の cries だけを持つダミーを作る。 */
+function pokemonWithCries(cries: PokeApiPokemon['cries']): PokeApiPokemon {
+  return { cries } as PokeApiPokemon;
+}
+
+describe('selectCryUrl', () => {
+  it('prefers latest over legacy when both exist', () => {
+    expect(
+      selectCryUrl(
+        pokemonWithCries({
+          latest: 'https://cries.test/latest/1.ogg',
+          legacy: 'https://cries.test/legacy/1.ogg',
+        }),
+      ),
+    ).toBe('https://cries.test/latest/1.ogg');
+  });
+
+  it('falls back to legacy when latest is missing', () => {
+    expect(
+      selectCryUrl(pokemonWithCries({ latest: null, legacy: 'https://cries.test/legacy/1.ogg' })),
+    ).toBe('https://cries.test/legacy/1.ogg');
+  });
+
+  it('treats an empty-string latest as missing and falls through to legacy', () => {
+    expect(
+      selectCryUrl(pokemonWithCries({ latest: '', legacy: 'https://cries.test/legacy/1.ogg' })),
+    ).toBe('https://cries.test/legacy/1.ogg');
+  });
+
+  it('returns null when both are missing or empty', () => {
+    expect(selectCryUrl(pokemonWithCries({ latest: null, legacy: null }))).toBeNull();
+    expect(selectCryUrl(pokemonWithCries({ latest: '', legacy: '' }))).toBeNull();
+    expect(selectCryUrl(pokemonWithCries(undefined))).toBeNull();
   });
 });

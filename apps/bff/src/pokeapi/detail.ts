@@ -4,6 +4,7 @@ import {
   buildLocalizedFlavorText,
   buildLocalizedGenus,
   buildLocalizedName,
+  selectCryUrl,
   selectImageUrl,
 } from './localization.js';
 import type {
@@ -258,6 +259,7 @@ export async function fetchPokemonDetail(
     id: pokemon.id,
     name: buildLocalizedName(species.names, pokemon.name),
     imageUrl: selectImageUrl(pokemon),
+    cryUrl: selectCryUrl(pokemon),
     height: pokemon.height,
     weight: pokemon.weight,
     types: toTypeDetails(pokemon, typeByName),

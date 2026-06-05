@@ -43,6 +43,15 @@ export interface PokeApiPokemonAbility {
   readonly ability: PokeApiNamedResource;
 }
 
+/**
+ * 鳴き声の音源 URL（.ogg）。`latest` は最新、`legacy` は旧世代の音源。
+ * 上流に該当音源が無い場合は null になりうる。
+ */
+export interface PokeApiPokemonCries {
+  readonly latest: string | null;
+  readonly legacy: string | null;
+}
+
 export interface PokeApiPokemonSprites {
   readonly front_default: string | null;
   readonly front_shiny: string | null;
@@ -64,6 +73,7 @@ export interface PokeApiPokemon {
   readonly stats: readonly PokeApiPokemonStat[];
   readonly abilities: readonly PokeApiPokemonAbility[];
   readonly sprites: PokeApiPokemonSprites;
+  readonly cries?: PokeApiPokemonCries;
   readonly species: PokeApiNamedResource;
 }
 
@@ -267,6 +277,8 @@ export interface PokemonDetail {
   readonly name: LocalizedName;
   /** スプライト画像 URL。上流に画像が無い場合は null。 */
   readonly imageUrl: string | null;
+  /** 鳴き声の音源 URL（.ogg、latest 優先）。上流に音源が無い場合は null。 */
+  readonly cryUrl: string | null;
   /** 身長（デシメートル単位の上流値そのまま）。 */
   readonly height: number;
   /** 体重（ヘクトグラム単位の上流値そのまま）。 */
