@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { fetchPokemonDetail } from './detail.js';
+import { computeTypeMatchups, fetchPokemonDetail } from './detail.js';
 import { buildLocalizedFlavorText, buildLocalizedGenus, formatFlavorText } from './localization.js';
-import type { PokeApiFlavorTextEntry, PokeApiGenus } from './types.js';
+import type {
+  PokeApiFlavorTextEntry,
+  PokeApiGenus,
+  PokeApiName,
+  PokeApiNamedResource,
+  PokeApiType,
+} from './types.js';
 
 const UPSTREAM = 'https://upstream.test/api/v2';
 
@@ -106,9 +112,24 @@ const VENUSAUR: PokemonFixture = {
 
 const FIXTURES = [BULBASAUR, IVYSAUR, VENUSAUR] as const;
 
-const TYPE_NAMES: Record<string, { ja: string; en: string }> = {
-  grass: { ja: 'くさ', en: 'grass' },
-  poison: { ja: 'どく', en: 'poison' },
+interface DamageRelationsFixture {
+  readonly double_damage_from: readonly { readonly name: string; readonly url: string }[];
+  readonly half_damage_from: readonly { readonly name: string; readonly url: string }[];
+  readonly no_damage_from: readonly { readonly name: string; readonly url: string }[];
+}
+
+const EMPTY_DAMAGE_RELATIONS: DamageRelationsFixture = {
+  double_damage_from: [],
+  half_damage_from: [],
+  no_damage_from: [],
+};
+
+const TYPE_NAMES: Record<
+  string,
+  { ja: string; en: string; damageRelations: DamageRelationsFixture }
+> = {
+  grass: { ja: 'くさ', en: 'grass', damageRelations: EMPTY_DAMAGE_RELATIONS },
+  poison: { ja: 'どく', en: 'poison', damageRelations: EMPTY_DAMAGE_RELATIONS },
 };
 
 const ABILITY_NAMES: Record<string, { ja: string; en: string }> = {
@@ -205,6 +226,7 @@ function makeFetchImpl() {
           { name: t.ja, language: { name: 'ja-Hrkt', url: '' } },
           { name: t.en, language: { name: 'en', url: '' } },
         ],
+        damage_relations: t.damageRelations,
         pokemon: [],
       });
     }
@@ -375,7 +397,17 @@ describe('fetchPokemonDetail', () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
       const path = new URL(String(input)).pathname;
       if (/\/type\//.test(path)) {
-        return jsonResponse({ id: 1, name: 'mystery', names: [], pokemon: [] });
+        return jsonResponse({
+          id: 1,
+          name: 'mystery',
+          names: [],
+          damage_relations: {
+            double_damage_from: [],
+            half_damage_from: [],
+            no_damage_from: [],
+          },
+          pokemon: [],
+        });
       }
       if (/\/ability\//.test(path)) {
         return jsonResponse({ id: 1, name: 'mystery', names: [] });
@@ -432,6 +464,158 @@ describe('fetchPokemonDetail', () => {
     expect(detail.imageUrl).toBeNull();
     expect(detail.evolutionChain.id).toBe(99);
     expect(detail.evolutionChain.evolvesTo).toEqual([]);
+  });
+});
+
+function ref(name: string): PokeApiNamedResource {
+  return { name, url: `${UPSTREAM}/type/${name}/` };
+}
+
+function typeNamesOf(...names: readonly string[]): PokeApiName[] {
+  return names.length === 0
+    ? []
+    : [
+        { name: `${names[0]!}-ja`, language: { name: 'ja-Hrkt', url: '' } },
+        { name: `${names[0]!}-en`, language: { name: 'en', url: '' } },
+      ];
+}
+
+/** localized 名は `${id}-ja` / `${id}-en` を持つ `/type` レスポンスを作る。names を空にすると識別子フォールバックになる。 */
+function makeType(
+  id: string,
+  damage: {
+    readonly double?: readonly string[];
+    readonly half?: readonly string[];
+    readonly no?: readonly string[];
+  },
+  options: { readonly withNames?: boolean } = {},
+): PokeApiType {
+  const withNames = options.withNames ?? true;
+  return {
+    id: 1,
+    name: id,
+    names: withNames ? typeNamesOf(id) : [],
+    damage_relations: {
+      double_damage_from: (damage.double ?? []).map(ref),
+      half_damage_from: (damage.half ?? []).map(ref),
+      no_damage_from: (damage.no ?? []).map(ref),
+    },
+    pokemon: [],
+  };
+}
+
+function typeMap(...types: readonly PokeApiType[]): Map<string, PokeApiType> {
+  return new Map(types.map((t) => [t.name, t]));
+}
+
+describe('computeTypeMatchups', () => {
+  it('classifies x2 / x0.5 / x0 for a single-type defender', () => {
+    const ground = makeType('ground', {
+      double: ['water', 'grass', 'ice'],
+      half: ['poison', 'rock'],
+      no: ['electric'],
+    });
+    const attackers = typeMap(
+      ground,
+      makeType('water', {}),
+      makeType('grass', {}),
+      makeType('ice', {}),
+      makeType('poison', {}),
+      makeType('rock', {}),
+      makeType('electric', {}),
+    );
+
+    const matchups = computeTypeMatchups(['ground'], attackers);
+
+    expect(matchups.weaknesses).toEqual([
+      {
+        multiplier: 2,
+        types: [
+          { id: 'water', name: { ja: 'water-ja', en: 'water-en' } },
+          { id: 'grass', name: { ja: 'grass-ja', en: 'grass-en' } },
+          { id: 'ice', name: { ja: 'ice-ja', en: 'ice-en' } },
+        ],
+      },
+    ]);
+    expect(matchups.resistances).toEqual([
+      {
+        multiplier: 0.5,
+        types: [
+          { id: 'poison', name: { ja: 'poison-ja', en: 'poison-en' } },
+          { id: 'rock', name: { ja: 'rock-ja', en: 'rock-en' } },
+        ],
+      },
+    ]);
+    expect(matchups.immunities).toEqual([
+      {
+        multiplier: 0,
+        types: [{ id: 'electric', name: { ja: 'electric-ja', en: 'electric-en' } }],
+      },
+    ]);
+  });
+
+  it('composes x4 and x0.25 for a dual-type defender', () => {
+    // 両タイプが fire に 2 倍 → ×4、両タイプが water に 0.5 倍 → ×0.25。
+    const a = makeType('a', { double: ['fire'], half: ['water'] });
+    const b = makeType('b', { double: ['fire'], half: ['water'] });
+    const attackers = typeMap(a, b, makeType('fire', {}), makeType('water', {}));
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 4, types: [{ id: 'fire', name: { ja: 'fire-ja', en: 'fire-en' } }] },
+    ]);
+    expect(matchups.resistances).toEqual([
+      { multiplier: 0.25, types: [{ id: 'water', name: { ja: 'water-ja', en: 'water-en' } }] },
+    ]);
+    expect(matchups.immunities).toEqual([]);
+  });
+
+  it('cancels x2 and x0.5 to neutral (x1) and excludes it', () => {
+    const a = makeType('a', { double: ['fire'] });
+    const b = makeType('b', { half: ['fire'] });
+    const attackers = typeMap(a, b, makeType('fire', {}));
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([]);
+  });
+
+  it('preserves immunity (x0) even when the other type multiplies up', () => {
+    const a = makeType('a', { no: ['ghost'] });
+    const b = makeType('b', { double: ['ghost'] });
+    const attackers = typeMap(a, b, makeType('ghost', {}));
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([
+      { multiplier: 0, types: [{ id: 'ghost', name: { ja: 'ghost-ja', en: 'ghost-en' } }] },
+    ]);
+  });
+
+  it('orders weakness groups by multiplier descending and falls back names to the identifier', () => {
+    // x4: 両方が super、x2: 片方だけが super。fire の名前は欠落させて識別子フォールバックを確認する。
+    const a = makeType('a', { double: ['fire', 'ice'] });
+    const b = makeType('b', { double: ['fire'] });
+    const attackers = typeMap(
+      a,
+      b,
+      makeType('fire', {}, { withNames: false }),
+      makeType('ice', {}),
+    );
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 4, types: [{ id: 'fire', name: { ja: 'fire', en: 'fire' } }] },
+      { multiplier: 2, types: [{ id: 'ice', name: { ja: 'ice-ja', en: 'ice-en' } }] },
+    ]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([]);
   });
 });
 

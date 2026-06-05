@@ -63,6 +63,26 @@ export const CHARIZARD_DETAIL = {
       },
     ],
   },
+  typeMatchups: {
+    weaknesses: [
+      { multiplier: 4, types: [type('rock', 'いわ', 'Rock')] },
+      {
+        multiplier: 2,
+        types: [type('water', 'みず', 'Water'), type('electric', 'でんき', 'Electric')],
+      },
+    ],
+    resistances: [
+      {
+        multiplier: 0.5,
+        types: [type('fighting', 'かくとう', 'Fighting'), type('fire', 'ほのお', 'Fire')],
+      },
+      {
+        multiplier: 0.25,
+        types: [type('grass', 'くさ', 'Grass'), type('bug', 'むし', 'Bug')],
+      },
+    ],
+    immunities: [{ multiplier: 0, types: [type('ground', 'じめん', 'Ground')] }],
+  },
   flavorText: {
     ja: 'ひこうしながら きえん を はく。からだじゅうが もえているように みえる。',
     en: 'It breathes fire that is hot enough to melt boulders.',
@@ -98,6 +118,11 @@ export const MEW_DETAIL = {
     name: { ja: 'ミュウ', en: 'Mew' },
     imageUrl: sprite(151),
     evolvesTo: [],
+  },
+  typeMatchups: {
+    weaknesses: [],
+    resistances: [],
+    immunities: [],
   },
   flavorText: {
     ja: 'いでんしには すべての ポケモンの ようそが ふくまれていると いわれている。',

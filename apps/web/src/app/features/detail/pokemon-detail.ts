@@ -8,7 +8,7 @@ import { Icon } from '../../shared/icon/icon';
 import { GENERATIONS } from '../list/pokemon-filters';
 import { PokemonApiService } from '../list/pokemon-api.service';
 import { TypeChip } from '../shared/type-chip';
-import type { EvolutionNode } from './pokemon-detail.model';
+import type { EvolutionNode, PokemonTypeMatchupGroup } from './pokemon-detail.model';
 
 /** 種族値バーの上限。単一ステータスの取りうる上限に合わせて 0–100% を割り当てる。 */
 const STAT_MAX = 255;
@@ -42,6 +42,18 @@ interface StatRow {
   readonly label: string;
   readonly base: number;
   readonly percent: number;
+}
+
+/** タイプ相性の 1 セクション（弱点/耐性/無効）。見出しは選択ロケールの文言で解決済み。 */
+interface MatchupSection {
+  readonly id: 'weaknesses' | 'resistances' | 'immunities';
+  readonly heading: string;
+  readonly groups: readonly PokemonTypeMatchupGroup[];
+}
+
+/** 被ダメージ倍率を「×4」「×0.5」のような表示文字列に整える。小数は末尾ゼロを残さない。 */
+function formatMultiplier(multiplier: number): string {
+  return `×${Number(multiplier.toFixed(2))}`;
 }
 
 /**
@@ -107,7 +119,7 @@ interface StatRow {
           }
           <div class="detail__types">
             @for (type of detail.types; track type.id) {
-              <app-type-chip [type]="type.id" />
+              <app-type-chip [type]="type.id" [name]="type.name" />
             }
           </div>
           <dl class="detail__metrics">
@@ -170,6 +182,31 @@ interface StatRow {
           </ul>
         </section>
 
+        <section class="detail__panel matchups">
+          <h2 class="detail__heading">{{ messages()['detail.matchups'] }}</h2>
+          @for (section of matchupSections(); track section.id) {
+            <div class="matchups__section">
+              <h3 class="matchups__heading">{{ section.heading }}</h3>
+              <ul class="matchups__groups" role="list">
+                @for (group of section.groups; track group.multiplier) {
+                  <li class="matchups__group">
+                    <span class="matchups__multiplier">{{
+                      formatMultiplier(group.multiplier)
+                    }}</span>
+                    <span class="matchups__chips">
+                      @for (type of group.types; track type.id) {
+                        <app-type-chip [type]="type.id" [name]="type.name" />
+                      }
+                    </span>
+                  </li>
+                } @empty {
+                  <li class="matchups__empty">{{ messages()['detail.matchups.empty'] }}</li>
+                }
+              </ul>
+            </div>
+          }
+        </section>
+
         <section class="detail__panel">
           <h2 class="detail__heading">{{ messages()['detail.evolution'] }}</h2>
           <ol class="evo" role="list">
@@ -213,6 +250,9 @@ interface StatRow {
     .stats__value,
     .stats__total,
     .abilities__hidden,
+    .matchups__heading,
+    .matchups__multiplier,
+    .matchups__empty,
     .evo__name {
       font-family: var(--font-display);
       font-size: var(--font-size-display-sm);
@@ -416,6 +456,43 @@ interface StatRow {
       border-radius: var(--radius-pixel);
     }
 
+    .matchups,
+    .matchups__section,
+    .matchups__groups {
+      display: flex;
+      flex-direction: column;
+    }
+    .matchups {
+      gap: var(--space-3);
+    }
+    .matchups__section,
+    .matchups__groups {
+      gap: var(--space-2);
+    }
+    .matchups__groups {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .matchups__heading,
+    .matchups__empty {
+      margin: 0;
+      color: var(--color-text-muted);
+    }
+    .matchups__group,
+    .matchups__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .matchups__group {
+      align-items: center;
+    }
+    .matchups__multiplier {
+      flex: none;
+      min-width: 3rem;
+    }
+
     .evo {
       flex-wrap: wrap;
       align-items: center;
@@ -536,6 +613,40 @@ export class PokemonDetail {
       };
     });
   });
+
+  /**
+   * タイプ相性のセクション表示用ビューモデル。見出し文言を選択ロケールで解決するため、
+   * `messages` signal を読む computed にして言語切り替えに追従させる。
+   */
+  protected readonly matchupSections = computed<readonly MatchupSection[]>(() => {
+    const detail = this.data();
+    if (!detail) {
+      return [];
+    }
+    const messages = this.messages();
+    const matchups = detail.typeMatchups;
+    return [
+      {
+        id: 'weaknesses',
+        heading: messages['detail.matchups.weaknesses'],
+        groups: matchups.weaknesses,
+      },
+      {
+        id: 'resistances',
+        heading: messages['detail.matchups.resistances'],
+        groups: matchups.resistances,
+      },
+      {
+        id: 'immunities',
+        heading: messages['detail.matchups.immunities'],
+        groups: matchups.immunities,
+      },
+    ];
+  });
+
+  protected formatMultiplier(multiplier: number): string {
+    return formatMultiplier(multiplier);
+  }
 
   protected localize(name: LocalizedName): string {
     return this.localeService.localizeName(name);
