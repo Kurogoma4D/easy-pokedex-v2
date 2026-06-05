@@ -101,7 +101,11 @@ export function selectImageUrl(pokemon: PokeApiPokemon): string | null {
   );
 }
 
-/** 鳴き声音源 URL を選ぶ。latest を優先し、無ければ legacy、いずれも無ければ null。 */
+/**
+ * 鳴き声音源 URL を選ぶ。latest を優先し、無ければ legacy、いずれも無ければ null。
+ * 上流が空文字を返す場合があり、空文字のままだとフロントで `new Audio('')` を生むため、
+ * 空文字も「未設定」とみなして次の候補へフォールバックする。
+ */
 export function selectCryUrl(pokemon: PokeApiPokemon): string | null {
-  return pokemon.cries?.latest ?? pokemon.cries?.legacy ?? null;
+  return pokemon.cries?.latest || pokemon.cries?.legacy || null;
 }

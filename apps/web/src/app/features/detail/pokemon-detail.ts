@@ -57,6 +57,24 @@ function formatMultiplier(multiplier: number): string {
 }
 
 /**
+ * ブラウザが .ogg を再生可能かを一度だけ判定してキャッシュする。
+ * `canPlayType` の結果は実行環境で不変なため、再計算のたびに `new Audio()` を作らないよう
+ * モジュール内で遅延初期化する。`canPlayType` は '' / 'maybe' / 'probably' を返すため、空文字（再生不可）だけを弾く。
+ */
+let oggSupport: boolean | undefined;
+function supportsOggPlayback(): boolean {
+  if (oggSupport === undefined) {
+    oggSupport = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/ogg') !== '';
+  }
+  return oggSupport;
+}
+
+/** .ogg 再生可否のキャッシュを破棄する。`Audio` を差し替えるテストが再判定するためのフック。 */
+export function resetOggPlaybackSupportForTest(): void {
+  oggSupport = undefined;
+}
+
+/**
  * 詳細画面（FR-3）。BFF の `/pokemon/:idOrName` を `httpResource` で取得して表示する。
  *
  * ルートの `:id`（`withComponentInputBinding` で束縛）をキーに取得し、id が変わると自動で再取得する。
@@ -608,20 +626,8 @@ export class PokemonDetail {
   /** 鳴き声音源 URL。BFF が音源を持たない場合は null。 */
   protected readonly cryUrl = computed(() => this.data()?.cryUrl ?? null);
 
-  /**
-   * 鳴き声を再生できるか。音源 URL があり、かつブラウザが .ogg を再生可能と判断する場合のみ true。
-   * `canPlayType` は '' / 'maybe' / 'probably' を返すため、空文字（再生不可）だけを弾く。
-   */
-  protected readonly canPlayCry = computed(() => {
-    const url = this.cryUrl();
-    if (url === null) {
-      return false;
-    }
-    if (typeof Audio === 'undefined') {
-      return false;
-    }
-    return new Audio().canPlayType('audio/ogg') !== '';
-  });
+  /** 鳴き声を再生できるか。音源 URL があり、かつブラウザが .ogg を再生可能と判断する場合のみ true。 */
+  protected readonly canPlayCry = computed(() => this.cryUrl() !== null && supportsOggPlayback());
 
   /** 再生ボタンのアクセシブルラベル。`{name}` を選択ロケールの名前で埋める。 */
   protected readonly cryLabel = computed(() =>

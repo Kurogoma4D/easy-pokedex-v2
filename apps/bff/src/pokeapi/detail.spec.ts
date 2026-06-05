@@ -327,6 +327,40 @@ describe('fetchPokemonDetail', () => {
     expect(detail.cryUrl).toBe('https://cry.test/legacy/1.ogg');
   });
 
+  it('treats an empty-string latest as missing and falls back the cry url to cries.legacy', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/pokemon\/1\/?$/.test(path)) {
+        const body = pokemonBody(BULBASAUR) as Record<string, unknown>;
+        body.cries = { latest: '', legacy: 'https://cry.test/legacy/1.ogg' };
+        return jsonResponse(body);
+      }
+      return makeFetchImpl()(input);
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const detail = await fetchPokemonDetail(client, 1);
+
+    expect(detail.cryUrl).toBe('https://cry.test/legacy/1.ogg');
+  });
+
+  it('returns a null cry url when both latest and legacy are empty strings', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+      if (/\/pokemon\/1\/?$/.test(path)) {
+        const body = pokemonBody(BULBASAUR) as Record<string, unknown>;
+        body.cries = { latest: '', legacy: '' };
+        return jsonResponse(body);
+      }
+      return makeFetchImpl()(input);
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const detail = await fetchPokemonDetail(client, 1);
+
+    expect(detail.cryUrl).toBeNull();
+  });
+
   it('includes localized dex info (flavor text, genus, generation, legendary/mythical) from species', async () => {
     const client = makeClient(makeFetchImpl());
 

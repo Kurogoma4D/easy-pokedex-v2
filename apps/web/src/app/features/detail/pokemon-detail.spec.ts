@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
-import { PokemonDetail } from './pokemon-detail';
+import { PokemonDetail, resetOggPlaybackSupportForTest } from './pokemon-detail';
 import type { PokemonDetailResponse } from './pokemon-detail.model';
 
 const DETAIL_URL = '/api/pokemon/1';
@@ -107,6 +107,8 @@ describe('PokemonDetail', () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    // .ogg 再生可否はモジュール内にキャッシュされるため、Audio を差し替えるテスト間で再判定させる。
+    resetOggPlaybackSupportForTest();
     await TestBed.configureTestingModule({
       imports: [PokemonDetail],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
