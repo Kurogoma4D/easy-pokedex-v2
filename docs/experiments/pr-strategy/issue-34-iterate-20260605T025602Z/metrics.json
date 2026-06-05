@@ -1,0 +1,20 @@
+{
+  "run_id": "issue-34-iterate-20260605T025602Z",
+  "issue": 34,
+  "approach": "iterate",
+  "started_at": "2026-06-05T02:56:02Z",
+  "pr_first_opened_at": "2026-06-05T03:00:36Z",
+  "ready_at": "2026-06-05T03:05:28Z",
+  "elapsed_seconds": 566,
+  "prs": [
+    {
+      "number": 46,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/46",
+      "opened_at": "2026-06-05T03:00:36Z"
+    }
+  ],
+  "split_count": 1,
+  "review_rounds": 2,
+  "findings_deferred": 0,
+  "notes": "normalize に normalizeKana(NFKC + ひらがな→カタカナ +0x60)を組み込み、matchesName のクエリ/候補双方に一貫適用。ラウンド1で low 1件(E2Eスタブがクエリ非依存で正規化を実証しない)→ スタブをクエリ依存化し肯定/否定ケース追加。ラウンド2で LGTM。BFF Vitest + Playwright e2e(5 passed)で担保。"
+}

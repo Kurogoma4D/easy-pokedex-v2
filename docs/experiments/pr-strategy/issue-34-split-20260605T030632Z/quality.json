@@ -1,0 +1,24 @@
+{
+  "issue": 34,
+  "approach": "split",
+  "prs": [47, 48],
+  "total_additions": 276,
+  "total_deletions": 9,
+  "scores": {
+    "correctness": 5,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 4
+  },
+  "weighted_total": 98.4,
+  "findings": [
+    {
+      "severity": "low",
+      "location": "e2e/fixtures.ts (normalizeQuery)",
+      "note": "方針A と同様、かな正規化(NFKC + ひらがな→カタカナ)が BFF normalize と E2E スタブで二重実装。決定論的・ネットワーク非依存の harness を保つための意図的トレードオフだが BFF 側変更時の同期が必要な保守結合。正規化順序は両者一致。"
+    }
+  ],
+  "verdict": "方針A と同等に的確なかな正規化の修正で、HIRAGANA_START/END/OFFSET の名前付き定数によりやや可読性が高い。normalizeKana 単体・search レベルのかな収束・クエリ依存 E2E(肯定/否定)まで網羅し機能 AC を完全充足。難点は方針A と共通の E2E スタブへの正規化複製。"
+}
