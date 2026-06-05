@@ -444,6 +444,74 @@ describe('searchPokemon', () => {
     expect(result.count).toBe(0);
   });
 
+  it('does not fetch /pokemon for non-matching name-only candidates', async () => {
+    const fetchImpl = makeFetchImpl();
+    const client = makeClient(fetchImpl);
+
+    // "saur" は bulbasaur(1) のみマッチ。他候補は species だけ引かれ、`/pokemon` は引かれない。
+    const result = await searchPokemon(client, { name: 'saur', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([1]);
+
+    const fetchedPokemonIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    expect(fetchedPokemonIds).toEqual([1]);
+  });
+
+  it('matches an english slug without fetching /pokemon to resolve names', async () => {
+    // species の多言語名に英語スラッグ（identifier）が含まれない場合でも、候補の slug で
+    // 英語識別子マッチが成立する。マッチ判定に `/pokemon` を引かないことを確認する。
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+
+      if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+        return jsonResponse({
+          count: FIXTURES.length,
+          next: null,
+          previous: null,
+          results: FIXTURES.map((f) => ({ name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` })),
+        });
+      }
+
+      const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+      if (speciesMatch !== null) {
+        const f = byId(Number(speciesMatch[1]));
+        // 英語表示名は付けず ja のみにする。英語マッチは候補 slug 経由でしか成立しない。
+        return jsonResponse({
+          id: f.id,
+          name: f.name,
+          names: [{ name: f.jaName, language: { name: 'ja-Hrkt', url: '' } }],
+          flavor_text_entries: [],
+          generation: { name: f.generation, url: '' },
+          evolution_chain: { url: '' },
+          is_legendary: false,
+          is_mythical: false,
+        });
+      }
+
+      const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+      if (pokemonMatch !== null) {
+        return jsonResponse(pokemonBody(byId(Number(pokemonMatch[1]))));
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await searchPokemon(client, { name: 'charmander', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([4]);
+
+    // マッチ判定で `/pokemon` は引かれない。`/pokemon/4` はページ分の素材取得でのみ引かれる。
+    const fetchedPokemonIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    expect(fetchedPokemonIds).toEqual([4]);
+  });
+
   it('caps in-flight upstream fetches at the configured concurrency', async () => {
     const base = makeFetchImpl();
     let inFlight = 0;
