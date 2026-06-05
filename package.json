@@ -12,11 +12,14 @@
     "format:check": "prettier --check \"**/*.{ts,html,css,json,md,yaml,yml}\"",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
     "dev:web": "pnpm --filter web start",
     "dev:bff": "pnpm --filter bff dev"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
+    "@playwright/test": "1.60.0",
     "eslint": "9.39.4",
     "globals": "16.5.0",
     "prettier": "3.8.3",
