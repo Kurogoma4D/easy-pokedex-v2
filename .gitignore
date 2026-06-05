@@ -9,6 +9,12 @@ out-tsc/
 # test / coverage
 coverage/
 
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # logs
 *.log
 npm-debug.log*
