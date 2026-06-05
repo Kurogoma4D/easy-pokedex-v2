@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../features/auth/auth.service';
 import { Locale } from '../i18n/locale';
 import { LocaleService } from '../i18n/locale.service';
 import { MessageKey } from '../i18n/messages';
@@ -23,7 +24,23 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       </a>
       <nav class="app-header__nav">
         <a routerLink="/list" routerLinkActive="is-active">{{ messages()['nav.list'] }}</a>
+        @if (user()) {
+          <a routerLink="/favorites" routerLinkActive="is-active">{{
+            messages()['nav.favorites']
+          }}</a>
+        }
       </nav>
+      <div class="app-header__account">
+        @if (user(); as currentUser) {
+          <span class="app-header__email" [title]="currentUser.email">{{ currentUser.email }}</span>
+          <button type="button" (click)="logout()">{{ messages()['nav.logout'] }}</button>
+        } @else {
+          <a routerLink="/login" routerLinkActive="is-active">{{ messages()['nav.login'] }}</a>
+          <a routerLink="/register" routerLinkActive="is-active">{{
+            messages()['nav.register']
+          }}</a>
+        }
+      </div>
       <div
         class="app-header__locale"
         role="group"
@@ -73,6 +90,26 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       color: var(--color-text-on-shell);
       text-decoration: none;
     }
+    .app-header__account {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+    }
+    .app-header__account a,
+    .app-header__account button {
+      color: var(--color-text-on-shell);
+      text-decoration: none;
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+    }
+    .app-header__email {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .app-header__locale {
       display: flex;
       align-items: center;
@@ -99,8 +136,11 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
 })
 export class Header {
   private readonly localeService = inject(LocaleService);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly messages = this.localeService.messages;
+  protected readonly user = this.auth.user;
   protected readonly currentLocale = this.localeService.locale;
   protected readonly localeOptions = this.localeService.availableLocales.map((locale) => ({
     locale,
@@ -109,5 +149,10 @@ export class Header {
 
   protected selectLocale(locale: Locale): void {
     this.localeService.setLocale(locale);
+  }
+
+  protected async logout(): Promise<void> {
+    await this.auth.logout();
+    await this.router.navigateByUrl('/list');
   }
 }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { app } from './app.js';
+import { createTestApp } from './test-app.js';
 
 describe('BFF app', () => {
   it('responds to the health check', async () => {
+    const { app } = createTestApp();
     const res = await app.request('/health');
 
     expect(res.status).toBe(200);
@@ -14,6 +15,7 @@ describe('BFF app', () => {
   });
 
   it('returns 404 for unknown routes', async () => {
+    const { app } = createTestApp();
     const res = await app.request('/does-not-exist');
     expect(res.status).toBe(404);
   });

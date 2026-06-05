@@ -13,8 +13,11 @@ Web アプリ。フロントエンドは Angular、BFF は Hono で実装しま�
 - 詳細ページ（図鑑番号、ステータス、タイプ、特性、進化チェーンなど）
 - 多言語対応（日本語・英語）。UI 文言と PokeAPI 由来の固有名詞の両方を切り替え
 - Hono BFF による PokeAPI の取得・整形・キャッシュ（フロントは BFF 経由でのみアクセス）
+- アカウント登録・ログイン（メール+パスワード、セッション Cookie 方式）
+- ポケモンのお気に入り登録・解除と、ログインユーザー専用のお気に入り一覧
 
-スコープ外: お気に入り登録、ユーザー認証、ポケモン同士の比較・対戦、書き込み系機能。
+スコープ外: OAuth / ソーシャルログイン、確認メール・パスワードリセット、プロフィール編集、
+ポケモン同士の比較・対戦。
 
 ## 技術スタック
 
@@ -43,22 +46,37 @@ pnpm ワークスペースのモノレポです。
 
 ## セットアップと実行
 
-> アプリ本体は GitHub Issue として分解し、順次実装していきます。下記コマンドは構成確定後の想定です。
-
 ```bash
 # 依存インストール（lockfile を固定）
 pnpm install --frozen-lockfile
 
+# 環境変数を用意する（接続情報・ポート等）
+cp .env.example .env
+
+# Postgres を起動する（docker-compose）
+docker compose up -d postgres
+
+# マイグレーションを適用する（bff 起動時にも自動適用される）
+pnpm --filter bff migrate
+
 # 開発サーバー（フロント / BFF）
-pnpm --filter web dev
-pnpm --filter bff dev
+pnpm dev:web
+pnpm dev:bff
 
 # 品質チェック
 pnpm lint      # ESLint
 pnpm format    # Prettier
 pnpm build     # 型チェック / ビルド
 pnpm test      # Vitest
+pnpm e2e       # Playwright（E2E）
 ```
+
+### 認証・お気に入りの構成
+
+- 永続化層は Postgres。`docker-compose.yml` で起動でき、接続情報は `.env`（雛形は `.env.example`）で設定する。
+- bff は起動時にマイグレーションを適用してから受け付ける。手動適用は `pnpm --filter bff migrate`。
+- 認証はメール+パスワード。パスワードは bcrypt でハッシュ化して保存し、認証成功時に HttpOnly の
+  セッション Cookie を発行する。お気に入りはログインユーザーに紐づき、保護 API は未認証アクセスを拒否する。
 
 ## 仕様
 
