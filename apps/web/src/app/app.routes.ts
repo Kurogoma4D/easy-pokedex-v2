@@ -11,6 +11,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/detail/pokemon-detail').then((m) => m.PokemonDetail),
   },
   {
+    path: 'favorites',
+    loadComponent: () => import('./features/favorites/favorites-page').then((m) => m.FavoritesPage),
+  },
+  {
     path: 'login',
     loadComponent: () => import('./features/auth/login').then((m) => m.Login),
   },

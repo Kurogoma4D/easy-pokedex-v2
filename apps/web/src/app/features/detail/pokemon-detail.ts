@@ -13,6 +13,7 @@ import { LocaleService } from '../../i18n/locale.service';
 import { LocalizedName } from '../../i18n/localized-name';
 import { MessageKey } from '../../i18n/messages';
 import { Icon } from '../../shared/icon/icon';
+import { FavoriteButton } from '../favorites/favorite-button';
 import { GENERATIONS } from '../list/pokemon-filters';
 import { PokemonApiService } from '../list/pokemon-api.service';
 import { TypeChip } from '../shared/type-chip';
@@ -78,7 +79,7 @@ function formatMultiplier(multiplier: number): string {
 @Component({
   selector: 'app-pokemon-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TypeChip, Icon],
+  imports: [RouterLink, TypeChip, Icon, FavoriteButton],
   template: `
     <article class="detail">
       <a class="detail__back" routerLink="/list">
@@ -109,6 +110,7 @@ function formatMultiplier(multiplier: number): string {
           </div>
           <div class="detail__title">
             <h1 class="detail__name">{{ name() }}</h1>
+            <app-favorite-button [pokemonId]="detail.id" />
             <button
               class="detail__cry"
               type="button"
