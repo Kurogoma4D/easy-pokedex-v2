@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../app.js';
 import { AuthService, createMemoryAuthRepository } from '../auth/index.js';
+import { FavoriteService, createMemoryFavoriteRepository } from '../favorites/index.js';
 import { PokeApiClient } from '../pokeapi/index.js';
 
 type App = ReturnType<typeof createApp>;
@@ -9,6 +10,7 @@ type App = ReturnType<typeof createApp>;
 function buildApp(): App {
   return createApp({
     authService: new AuthService(createMemoryAuthRepository()),
+    favoriteService: new FavoriteService(createMemoryFavoriteRepository()),
     pokeApiClient: new PokeApiClient(),
   });
 }
