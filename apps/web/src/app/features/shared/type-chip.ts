@@ -36,15 +36,10 @@ export class TypeChip {
   private readonly localeService = inject(LocaleService);
 
   readonly type = input.required<string>();
-  /**
-   * 表示名の多言語ソース。BFF が `LocalizedName` を返す呼び出し元はそれを渡す。
-   * 未指定なら静的辞書（`TYPE_NAME`）で `type` から引き、辞書にも無ければ識別子をそのまま出す。
-   */
-  readonly name = input<LocalizedName | undefined>(undefined);
 
   protected readonly style = computed(() => typeChipStyle(this.type()));
   protected readonly label = computed(() => {
-    const name = this.name() ?? TYPE_NAME.get(this.type());
+    const name = TYPE_NAME.get(this.type());
     return name ? this.localeService.localizeName(name) : this.type();
   });
 }

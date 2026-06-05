@@ -5,10 +5,9 @@ import { LocaleService } from '../../i18n/locale.service';
 import { LocalizedName } from '../../i18n/localized-name';
 import { MessageKey } from '../../i18n/messages';
 import { Icon } from '../../shared/icon/icon';
-import { GENERATIONS } from '../list/pokemon-filters';
 import { PokemonApiService } from '../list/pokemon-api.service';
 import { TypeChip } from '../shared/type-chip';
-import type { EvolutionNode, PokemonTypeMatchupGroup } from './pokemon-detail.model';
+import type { EvolutionNode } from './pokemon-detail.model';
 
 /** 種族値バーの上限。単一ステータスの取りうる上限に合わせて 0–100% を割り当てる。 */
 const STAT_MAX = 255;
@@ -22,9 +21,6 @@ const STAT_LABEL_KEYS = new Map<string, MessageKey>([
   ['special-defense', 'stat.special-defense'],
   ['speed', 'stat.speed'],
 ]);
-
-/** 世代識別子から表示名を引く。検索フィルタと同じ静的一覧（`GENERATIONS`）を共有する。 */
-const GENERATION_BY_ID = new Map(GENERATIONS.map((g) => [g.id, g.name]));
 
 /** 進化チェーンのツリーを描画順の一次元配列へ平坦化する（分岐は深さ優先で直列化）。 */
 function flattenChain(root: EvolutionNode): readonly EvolutionNode[] {
@@ -42,18 +38,6 @@ interface StatRow {
   readonly label: string;
   readonly base: number;
   readonly percent: number;
-}
-
-/** タイプ相性の 1 セクション（弱点/耐性/無効）。見出しは選択ロケールの文言で解決済み。 */
-interface MatchupSection {
-  readonly id: 'weaknesses' | 'resistances' | 'immunities';
-  readonly heading: string;
-  readonly groups: readonly PokemonTypeMatchupGroup[];
-}
-
-/** 被ダメージ倍率を「×4」「×0.5」のような表示文字列に整える。小数は末尾ゼロを残さない。 */
-function formatMultiplier(multiplier: number): string {
-  return `×${Number(multiplier.toFixed(2))}`;
 }
 
 /**
@@ -100,26 +84,9 @@ function formatMultiplier(multiplier: number): string {
             }
           </div>
           <h1 class="detail__name">{{ name() }}</h1>
-          @if (genus()) {
-            <p class="detail__genus">{{ genus() }}</p>
-          }
-          @if (detail.isLegendary || detail.isMythical) {
-            <div class="detail__badges">
-              @if (detail.isLegendary) {
-                <span class="detail__badge detail__badge--legendary">{{
-                  messages()['detail.legendary']
-                }}</span>
-              }
-              @if (detail.isMythical) {
-                <span class="detail__badge detail__badge--mythical">{{
-                  messages()['detail.mythical']
-                }}</span>
-              }
-            </div>
-          }
           <div class="detail__types">
             @for (type of detail.types; track type.id) {
-              <app-type-chip [type]="type.id" [name]="type.name" />
+              <app-type-chip [type]="type.id" />
             }
           </div>
           <dl class="detail__metrics">
@@ -131,19 +98,8 @@ function formatMultiplier(multiplier: number): string {
               <dt>{{ messages()['detail.weight'] }}</dt>
               <dd>{{ weightKg() }} kg</dd>
             </div>
-            <div>
-              <dt>{{ messages()['detail.generation'] }}</dt>
-              <dd>{{ generationName() }}</dd>
-            </div>
           </dl>
         </header>
-
-        @if (flavorText()) {
-          <section class="detail__panel">
-            <h2 class="detail__heading">{{ messages()['detail.dexEntry'] }}</h2>
-            <p class="detail__flavor">{{ flavorText() }}</p>
-          </section>
-        }
 
         <section class="detail__panel">
           <h2 class="detail__heading">{{ messages()['detail.stats'] }}</h2>
@@ -182,31 +138,6 @@ function formatMultiplier(multiplier: number): string {
           </ul>
         </section>
 
-        <section class="detail__panel matchups">
-          <h2 class="detail__heading">{{ messages()['detail.matchups'] }}</h2>
-          @for (section of matchupSections(); track section.id) {
-            <div class="matchups__section">
-              <h3 class="matchups__heading">{{ section.heading }}</h3>
-              <ul class="matchups__groups" role="list">
-                @for (group of section.groups; track group.multiplier) {
-                  <li class="matchups__group">
-                    <span class="matchups__multiplier">{{
-                      formatMultiplier(group.multiplier)
-                    }}</span>
-                    <span class="matchups__chips">
-                      @for (type of group.types; track type.id) {
-                        <app-type-chip [type]="type.id" [name]="type.name" />
-                      }
-                    </span>
-                  </li>
-                } @empty {
-                  <li class="matchups__empty">{{ messages()['detail.matchups.empty'] }}</li>
-                }
-              </ul>
-            </div>
-          }
-        </section>
-
         <section class="detail__panel">
           <h2 class="detail__heading">{{ messages()['detail.evolution'] }}</h2>
           <ol class="evo" role="list">
@@ -243,16 +174,10 @@ function formatMultiplier(multiplier: number): string {
     .detail__metrics dd,
     .detail__status,
     .detail__retry,
-    .detail__genus,
-    .detail__badge,
-    .detail__flavor,
     .stats__label,
     .stats__value,
     .stats__total,
     .abilities__hidden,
-    .matchups__heading,
-    .matchups__multiplier,
-    .matchups__empty,
     .evo__name {
       font-family: var(--font-display);
       font-size: var(--font-size-display-sm);
@@ -341,28 +266,6 @@ function formatMultiplier(multiplier: number): string {
     .detail__name {
       margin: 0;
       font-size: var(--font-size-display-lg);
-    }
-    .detail__genus,
-    .detail__flavor {
-      margin: 0;
-    }
-    .detail__genus {
-      color: var(--color-text-muted);
-    }
-    .detail__flavor {
-      line-height: 1.6;
-      white-space: pre-line;
-    }
-    .detail__badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-    }
-    .detail__badge {
-      padding: 0 var(--space-2);
-      color: var(--color-text-inverse);
-      background-color: var(--color-text);
-      border-radius: var(--radius-pixel);
     }
     .detail__types {
       display: flex;
@@ -456,43 +359,6 @@ function formatMultiplier(multiplier: number): string {
       border-radius: var(--radius-pixel);
     }
 
-    .matchups,
-    .matchups__section,
-    .matchups__groups {
-      display: flex;
-      flex-direction: column;
-    }
-    .matchups {
-      gap: var(--space-3);
-    }
-    .matchups__section,
-    .matchups__groups {
-      gap: var(--space-2);
-    }
-    .matchups__groups {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .matchups__heading,
-    .matchups__empty {
-      margin: 0;
-      color: var(--color-text-muted);
-    }
-    .matchups__group,
-    .matchups__chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-    }
-    .matchups__group {
-      align-items: center;
-    }
-    .matchups__multiplier {
-      flex: none;
-      min-width: 3rem;
-    }
-
     .evo {
       flex-wrap: wrap;
       align-items: center;
@@ -567,27 +433,6 @@ export class PokemonDetail {
     const detail = this.data();
     return detail ? (detail.weight / 10).toFixed(1) : '';
   });
-  protected readonly flavorText = computed(() => {
-    const detail = this.data();
-    return detail ? this.localeService.localizeName(detail.flavorText) : '';
-  });
-  protected readonly genus = computed(() => {
-    const detail = this.data();
-    return detail ? this.localeService.localizeName(detail.genus) : '';
-  });
-
-  /**
-   * 世代の表示名。検索フィルタと同じ `GENERATIONS` から選択ロケールで解決する。
-   * 未知の世代識別子（一覧に無い id）の場合は識別子そのものをフォールバックとして出す。
-   */
-  protected readonly generationName = computed(() => {
-    const detail = this.data();
-    if (!detail) {
-      return '';
-    }
-    const name = GENERATION_BY_ID.get(detail.generation);
-    return name ? this.localeService.localizeName(name) : detail.generation;
-  });
   protected readonly statTotal = computed(() => {
     const detail = this.data();
     return detail ? detail.stats.reduce((sum, stat) => sum + stat.base, 0) : 0;
@@ -613,40 +458,6 @@ export class PokemonDetail {
       };
     });
   });
-
-  /**
-   * タイプ相性のセクション表示用ビューモデル。見出し文言を選択ロケールで解決するため、
-   * `messages` signal を読む computed にして言語切り替えに追従させる。
-   */
-  protected readonly matchupSections = computed<readonly MatchupSection[]>(() => {
-    const detail = this.data();
-    if (!detail) {
-      return [];
-    }
-    const messages = this.messages();
-    const matchups = detail.typeMatchups;
-    return [
-      {
-        id: 'weaknesses',
-        heading: messages['detail.matchups.weaknesses'],
-        groups: matchups.weaknesses,
-      },
-      {
-        id: 'resistances',
-        heading: messages['detail.matchups.resistances'],
-        groups: matchups.resistances,
-      },
-      {
-        id: 'immunities',
-        heading: messages['detail.matchups.immunities'],
-        groups: matchups.immunities,
-      },
-    ];
-  });
-
-  protected formatMultiplier(multiplier: number): string {
-    return formatMultiplier(multiplier);
-  }
 
   protected localize(name: LocalizedName): string {
     return this.localeService.localizeName(name);
