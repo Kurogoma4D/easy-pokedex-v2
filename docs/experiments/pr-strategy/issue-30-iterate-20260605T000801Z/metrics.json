@@ -1,0 +1,20 @@
+{
+  "run_id": "issue-30-iterate-20260605T000801Z",
+  "issue": 30,
+  "approach": "iterate",
+  "started_at": "2026-06-05T00:08:01Z",
+  "pr_first_opened_at": "2026-06-05T00:13:49Z",
+  "ready_at": "2026-06-05T00:18:16Z",
+  "elapsed_seconds": 615,
+  "prs": [
+    {
+      "number": 31,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/31",
+      "opened_at": "2026-06-05T00:13:49Z"
+    }
+  ],
+  "split_count": 1,
+  "review_rounds": 2,
+  "findings_deferred": 0,
+  "notes": "ラウンド1で low 3件(count/results整合のドキュメント化, doc comment 整合) → 全件修正。ラウンド2で LGTM。BFF 名前検索のコールドキャッシュ・ファンアウト半減で修正。"
+}

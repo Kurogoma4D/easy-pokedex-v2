@@ -1,0 +1,34 @@
+{
+  "issue": 30,
+  "approach": "iterate",
+  "prs": [31],
+  "total_additions": 206,
+  "total_deletions": 33,
+  "scores": {
+    "correctness": 4,
+    "design": 5,
+    "tests": 4,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 90.0,
+  "findings": [
+    {
+      "severity": "medium",
+      "location": "apps/bff/src/routes/pokemon.spec.ts",
+      "note": "AC『E2E behavior is verified』を満たすのは BFF route レベル(app.request)のみ。検索がローディングのまま固まるという症状は UI 側の表出であり、apps/web のブラウザ E2E は未追加。根本原因が BFF なら妥当だが、AC が要求する E2E 保証としては範囲が狭い。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/pokeapi/search.ts",
+      "note": "コールドキャッシュのファンアウトを候補1体あたり2→1本へ半減させたが、名前のみ検索は依然 NAME_ONLY_CANDIDATE_CAP=1500 件ぶんの /pokemon-species を引く。同時実行6・各5sタイムアウトのもとで最悪ケースは依然大きく、半減はするが『妥当な時間内に完了』を保証する上限ではない（緩和であって境界づけではない）。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/pokeapi/search.ts:244-250",
+      "note": "count はマッチ段(species存在確認済み)のヒット数を正とし、後段 fetchMaterials が /pokemon の404で1体を取りこぼすと results.length < count になり得る。意図はコメントで明文化されているが、この乖離ケースのテストは無い。"
+    }
+  ],
+  "verdict": "BFF の名前検索ファンアウトを半減させ状態依存を解消した、設計・可読性とも良質な修正。route レベルで cold/warm 一致を検証している点は強い。減点要因は、AC が求める E2E 保証がブラウザ E2E でなく BFF route 止まりであること、ファンアウト半減が時間内完了の厳密な上限保証ではないこと。"
+}

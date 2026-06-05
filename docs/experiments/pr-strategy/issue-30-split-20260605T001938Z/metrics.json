@@ -1,0 +1,33 @@
+{
+  "run_id": "issue-30-split-20260605T001938Z",
+  "issue": 30,
+  "approach": "split",
+  "started_at": "2026-06-05T00:19:38Z",
+  "pr_first_opened_at": "2026-06-05T00:23:30Z",
+  "ready_at": "2026-06-05T00:32:37Z",
+  "elapsed_seconds": 779,
+  "prs": [
+    {
+      "number": 32,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/32",
+      "opened_at": "2026-06-05T00:23:30Z",
+      "part": 1,
+      "base": "main",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    },
+    {
+      "number": 33,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/33",
+      "opened_at": "2026-06-05T00:28:27Z",
+      "part": 2,
+      "base": "issue-30-split-part1",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    }
+  ],
+  "split_count": 2,
+  "review_rounds": 2,
+  "findings_deferred": 0,
+  "notes": "Part1=候補解決の基盤(Candidate型+slug保持、挙動不変, PR#32, LGTM一発)。Part2=名前マッチをspeciesのみ化しファンアウト半減(PR#33, base=part1)。Part2 review で nextOffset のページずれ(count/results乖離による重複)を指摘→1ターンで buildResponse に consumed 引数を追加し修正。方針B のため再レビューはせず修正の確認は未実施。"
+}

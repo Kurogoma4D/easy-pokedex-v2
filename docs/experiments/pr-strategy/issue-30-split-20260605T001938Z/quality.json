@@ -1,0 +1,29 @@
+{
+  "issue": 30,
+  "approach": "split",
+  "prs": [32, 33],
+  "total_additions": 368,
+  "total_deletions": 40,
+  "scores": {
+    "correctness": 4,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 94.0,
+  "findings": [
+    {
+      "severity": "medium",
+      "location": "apps/bff/src/routes/pokemon.spec.ts",
+      "note": "AC『E2E behavior is verified』を満たすのは BFF route レベル(app.request)のみで、apps/web のブラウザ E2E は未追加。方針A と共通のギャップ。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/pokeapi/search.ts",
+      "note": "コールドキャッシュのファンアウトを候補1体あたり2→1本へ半減させたが、名前のみ検索は依然 NAME_ONLY_CANDIDATE_CAP=1500件ぶんの /pokemon-species を引く。半減はするが『妥当な時間内に完了』を保証する厳密な上限ではない。方針A と共通のギャップ。"
+    }
+  ],
+  "verdict": "方針A と同じ species のみマッチ＋ファンアウト半減に加え、count/results 乖離時に nextOffset を消費候補数(page.length)ベースで前進させるページング修正を buildResponse に入れ、専用テストで検証している。方針A の最終差分が文書化のみで残したページずれ(重複/取りこぼし)を実際に解消しており、エッジのテスト網羅も厚い。残るギャップはブラウザ E2E 未実施とファンアウトが時間内完了の上限保証でない点で、いずれも方針A と共通。"
+}
