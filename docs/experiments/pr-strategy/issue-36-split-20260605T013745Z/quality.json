@@ -1,0 +1,29 @@
+{
+  "issue": 36,
+  "approach": "split",
+  "prs": [41, 42],
+  "total_additions": 607,
+  "total_deletions": 8,
+  "scores": {
+    "correctness": 4,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 94.0,
+  "findings": [
+    {
+      "severity": "medium",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.spec.ts / type-chip.spec.ts",
+      "note": "AC『E2E behavior is verified and guaranteed』を component テストレベルで満たす。リポジトリに E2E harness は存在しないことを確認済み(playwright/cypress 設定なし、PR #29 はタイトルに反し Vitest/TestBed の統合・component テスト)。matchup パネルのセクション描画・倍率・チップ・言語切替は component テストで検証されるが、AC の文面に対しては範囲が狭い。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.ts (styles) / apps/web/angular.json",
+      "note": "ビルドが非ブロッキング警告を出す(pokemon-detail のスタイル 4.37kB が anyComponentStyle 警告予算 4kB を超過、error 予算 8kB のためビルドは成功)。共有設定 angular.json は変更せず警告を残す選択。"
+    }
+  ],
+  "verdict": "BFF の倍率合成は方針A と同等に正確。加えてフロントが BFF 算出のローカライズ名(type.name)を type-chip の optional name 入力で実際に消費し、方針A の最終差分が残す『BFF ローカライズ名の破棄＋辞書欠落時の id フォールバック』というデッドデータ/脆さを解消している(ヘッダのタイプチップにも波及改善)。テストも type-chip の name 優先・matchup の言語切替まで厚い。残るギャップは E2E が harness 不在で component レベルである点(リポジトリ全体の制約)と、非ブロッキングの CSS 警告を残した点。"
+}

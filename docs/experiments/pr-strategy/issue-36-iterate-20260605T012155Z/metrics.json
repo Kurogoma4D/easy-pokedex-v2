@@ -1,0 +1,20 @@
+{
+  "run_id": "issue-36-iterate-20260605T012155Z",
+  "issue": 36,
+  "approach": "iterate",
+  "started_at": "2026-06-05T01:21:55Z",
+  "pr_first_opened_at": "2026-06-05T01:33:51Z",
+  "ready_at": "2026-06-05T01:35:28Z",
+  "elapsed_seconds": 813,
+  "prs": [
+    {
+      "number": 40,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/40",
+      "opened_at": "2026-06-05T01:33:51Z"
+    }
+  ],
+  "split_count": 1,
+  "review_rounds": 1,
+  "findings_deferred": 0,
+  "notes": "ラウンド1で LGTM。レビューは non-blocking の low 2件(resistances テスト fixture の並び順が降順契約と不一致, angular.json の anyComponentStyle 警告閾値 4kB→5kB)を助言として挙げたが CHANGES REQUESTED ではないため反復せず収束。BFF で /type damage_relations から被ダメ倍率を合成し DTO 化、フロントは type-chip 流用で弱点/耐性/無効を i18n 表示。E2E harness 不在のため BFF 統合 + Angular component テストで担保。"
+}

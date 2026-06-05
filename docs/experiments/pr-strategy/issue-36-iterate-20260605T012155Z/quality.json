@@ -1,0 +1,34 @@
+{
+  "issue": 36,
+  "approach": "iterate",
+  "prs": [40],
+  "total_additions": 582,
+  "total_deletions": 7,
+  "scores": {
+    "correctness": 4,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 94.0,
+  "findings": [
+    {
+      "severity": "medium",
+      "location": "apps/bff/src/pokeapi/detail.spec.ts / apps/web/src/app/features/detail/pokemon-detail.spec.ts",
+      "note": "AC『E2E behavior is verified and guaranteed』をブラウザ E2E でなく BFF 統合(モック /type の damage_relations で倍率合成・ローカライズ名を検証)＋Angular component(実コンポーネントをモック HTTP で描画し倍率/チップ/言語切替を検証)で満たしている。リポジトリに E2E harness が無く、統合レベルが既存の慣行(merged #14/#29)だが、AC の文面に対しては範囲が狭い。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/web/angular.json",
+      "note": "anyComponentStyle の警告閾値を 4kB→5kB に引き上げて matchup パネルのスタイル増分を許容(error 閾値 8kB は据え置き)。スタイル削減でなく閾値緩和の対応。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.spec.ts",
+      "note": "resistances フィクスチャが ×0.25 を ×0.5 より前に並べており、DTO が定める降順契約(×0.5→×0.25)と不一致。component は再ソートせず受領順に描画するため本番影響は無いがテストデータが実 BFF 出力と非代表。"
+    }
+  ],
+  "verdict": "BFF で damage_relations から被ダメ倍率を正確に合成し倍率ごとに分類、フロントは type-chip 流用で弱点/耐性/無効を i18n 表示する、設計・テスト・イディオムとも高水準の完成度。機能 AC は完全に満たす。唯一の実質的ギャップは AC が掲げる E2E 検証がブラウザ E2E でなく統合/component レベルである点(リポジトリ慣行に沿う)。"
+}
