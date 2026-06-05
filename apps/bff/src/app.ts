@@ -7,12 +7,15 @@ import {
   sessionResolver,
 } from './auth/index.js';
 import { getDbClient } from './db/index.js';
+import { FavoriteService, createPgFavoriteRepository } from './favorites/index.js';
 import { PokeApiClient } from './pokeapi/index.js';
 import { createAuthRoutes } from './routes/auth.js';
+import { createFavoriteRoutes } from './routes/favorites.js';
 import { createPokemonRoutes } from './routes/pokemon.js';
 
 export interface AppDeps {
   readonly authService: AuthService;
+  readonly favoriteService: FavoriteService;
   readonly pokeApiClient: PokeApiClient;
 }
 
@@ -32,6 +35,7 @@ export function createApp(deps: AppDeps): Hono<{ Variables: AuthVariables }> {
   );
 
   app.route('/auth', createAuthRoutes(deps.authService));
+  app.route('/favorites', createFavoriteRoutes(deps.favoriteService));
   app.route('/pokemon', createPokemonRoutes(deps.pokeApiClient));
 
   return app;
@@ -43,5 +47,6 @@ export function createApp(deps: AppDeps): Hono<{ Variables: AuthVariables }> {
  */
 export const app = createApp({
   authService: new AuthService(createPgAuthRepository(getDbClient)),
+  favoriteService: new FavoriteService(createPgFavoriteRepository(getDbClient)),
   pokeApiClient: new PokeApiClient(),
 });
