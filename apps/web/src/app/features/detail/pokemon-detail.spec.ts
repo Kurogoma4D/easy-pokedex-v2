@@ -77,6 +77,28 @@ const BULBASAUR: PokemonDetailResponse = {
     ],
     immunities: [],
   },
+  flavorText: {
+    ja: 'うまれたときから せなかに ふしぎな タネが うえてあって、からだと ともに そだつという。',
+    en: 'A strange seed was planted on its back at birth.',
+  },
+  genus: { ja: 'たねポケモン', en: 'Seed Pokémon' },
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
+};
+
+/** 伝説/幻バッジ検証用。両フラグを立てて両バッジが同時に出ることを確認する。 */
+const MEW: PokemonDetailResponse = {
+  ...BULBASAUR,
+  id: 151,
+  name: { ja: 'ミュウ', en: 'Mew' },
+  genus: { ja: 'しんしゅポケモン', en: 'New Species Pokémon' },
+  flavorText: {
+    ja: 'みなみアメリカの おくちで はっけんされたと いわれている。',
+    en: 'So rare it is still said to be a mirage.',
+  },
+  isLegendary: true,
+  isMythical: true,
 };
 
 describe('PokemonDetail', () => {
@@ -125,6 +147,17 @@ describe('PokemonDetail', () => {
     const req = await awaitRequest(fixture, DETAIL_URL);
     expect(req.request.method).toBe('GET');
     req.flush(BULBASAUR);
+    await render(fixture);
+  }
+
+  /** 任意の id・ペイロードで詳細を取得させて描画まで進める。 */
+  async function flushDetailWith(
+    fixture: ComponentFixture<PokemonDetail>,
+    payload: PokemonDetailResponse,
+  ): Promise<void> {
+    const req = await awaitRequest(fixture, `/api/pokemon/${payload.id}`);
+    expect(req.request.method).toBe('GET');
+    req.flush(payload);
     await render(fixture);
   }
 
@@ -275,6 +308,71 @@ describe('PokemonDetail', () => {
     expect(headings()).toEqual(['Weak to', 'Resists', 'Immune to']);
     // 空状態ラベルも追従する。
     expect(el.querySelector('.matchups__empty')?.textContent).toContain('None');
+  });
+
+  it('renders the dex entry, genus and generation from the DTO', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__flavor')?.textContent).toContain('ふしぎな タネ');
+    expect(el.querySelector('.detail__genus')?.textContent).toContain('たねポケモン');
+    // 世代は GENERATIONS の表示名へ解決される（識別子そのままではない）。
+    const generation = el.querySelector('.detail__metrics')?.textContent ?? '';
+    expect(generation).toContain('第1世代');
+  });
+
+  it('localizes the dex entry, genus and generation when the locale changes', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__flavor')?.textContent).toContain('ふしぎな タネ');
+    expect(el.querySelector('.detail__genus')?.textContent).toContain('たねポケモン');
+    expect(el.querySelector('.detail__metrics')?.textContent).toContain('第1世代');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    expect(el.querySelector('.detail__flavor')?.textContent).toContain('strange seed');
+    expect(el.querySelector('.detail__genus')?.textContent).toContain('Seed Pokémon');
+    expect(el.querySelector('.detail__metrics')?.textContent).toContain('Generation I');
+  });
+
+  it('omits the dex entry and genus when the localized strings are empty', async () => {
+    const fixture = createFixture('1');
+    await flushDetailWith(fixture, {
+      ...BULBASAUR,
+      flavorText: { ja: '', en: '' },
+      genus: { ja: '', en: '' },
+    });
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__flavor')).toBeFalsy();
+    expect(el.querySelector('.detail__genus')).toBeFalsy();
+  });
+
+  it('does not render legendary / mythical badges for an ordinary Pokémon', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__badges')).toBeFalsy();
+  });
+
+  it('renders both legendary and mythical badges and localizes them', async () => {
+    const fixture = createFixture('151');
+    await flushDetailWith(fixture, MEW);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__badge--legendary')?.textContent).toContain('でんせつ');
+    expect(el.querySelector('.detail__badge--mythical')?.textContent).toContain('まぼろし');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    expect(el.querySelector('.detail__badge--legendary')?.textContent).toContain('Legendary');
+    expect(el.querySelector('.detail__badge--mythical')?.textContent).toContain('Mythical');
   });
 
   it('shows a loading status before the response arrives', async () => {

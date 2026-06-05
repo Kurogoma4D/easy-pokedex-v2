@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
 import { computeTypeMatchups, fetchPokemonDetail } from './detail.js';
-import type { PokeApiName, PokeApiNamedResource, PokeApiType } from './types.js';
+import { buildLocalizedFlavorText, buildLocalizedGenus, formatFlavorText } from './localization.js';
+import type {
+  PokeApiFlavorTextEntry,
+  PokeApiGenus,
+  PokeApiName,
+  PokeApiNamedResource,
+  PokeApiType,
+} from './types.js';
 
 const UPSTREAM = 'https://upstream.test/api/v2';
 
@@ -23,6 +30,15 @@ interface PokemonFixture {
   readonly stats: readonly { readonly name: string; readonly base: number }[];
   readonly artwork?: string | null;
   readonly frontDefault?: string | null;
+  readonly flavorTextEntries?: readonly {
+    readonly flavorText: string;
+    readonly language: string;
+    readonly version: string;
+  }[];
+  readonly genera?: readonly { readonly genus: string; readonly language: string }[];
+  readonly generation?: string;
+  readonly isLegendary?: boolean;
+  readonly isMythical?: boolean;
 }
 
 const BULBASAUR: PokemonFixture = {
@@ -42,6 +58,32 @@ const BULBASAUR: PokemonFixture = {
   ],
   artwork: 'https://img.test/artwork/1.png',
   frontDefault: 'https://img.test/sprite/1.png',
+  flavorTextEntries: [
+    // 同一言語の複数バージョン。最新側（最後の出現）が代表として選ばれることを確認するため、
+    // 古いバージョンを先に、新しいバージョンを後に置く。
+    {
+      flavorText: 'A strange\nseed was\fplanted.',
+      language: 'en',
+      version: 'red',
+    },
+    {
+      flavorText: 'There is a\nplant seed on\fits back.',
+      language: 'en',
+      version: 'shield',
+    },
+    {
+      flavorText: 'うまれたときから\nせなかに\f しょくぶつの たねが あって、',
+      language: 'ja-Hrkt',
+      version: 'shield',
+    },
+  ],
+  genera: [
+    { genus: 'たねポケモン', language: 'ja-Hrkt' },
+    { genus: 'Seed Pokémon', language: 'en' },
+  ],
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
 };
 
 const IVYSAUR: PokemonFixture = {
@@ -126,11 +168,19 @@ function speciesBody(f: PokemonFixture): unknown {
       { name: f.jaName, language: { name: 'ja-Hrkt', url: '' } },
       { name: f.enName, language: { name: 'en', url: '' } },
     ],
-    flavor_text_entries: [],
-    generation: { name: 'generation-i', url: '' },
+    genera: (f.genera ?? []).map((g) => ({
+      genus: g.genus,
+      language: { name: g.language, url: '' },
+    })),
+    flavor_text_entries: (f.flavorTextEntries ?? []).map((e) => ({
+      flavor_text: e.flavorText,
+      language: { name: e.language, url: '' },
+      version: { name: e.version, url: '' },
+    })),
+    generation: { name: f.generation ?? 'generation-i', url: '' },
     evolution_chain: { url: `${UPSTREAM}/evolution-chain/1/` },
-    is_legendary: false,
-    is_mythical: false,
+    is_legendary: f.isLegendary ?? false,
+    is_mythical: f.isMythical ?? false,
   };
 }
 
@@ -240,6 +290,22 @@ describe('fetchPokemonDetail', () => {
       { id: 'attack', base: 49 },
       { id: 'defense', base: 49 },
     ]);
+  });
+
+  it('includes localized dex info (flavor text, genus, generation, legendary/mythical) from species', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const detail = await fetchPokemonDetail(client, 'bulbasaur');
+
+    expect(detail.generation).toBe('generation-i');
+    expect(detail.isLegendary).toBe(false);
+    expect(detail.isMythical).toBe(false);
+    expect(detail.genus).toEqual({ ja: 'たねポケモン', en: 'Seed Pokémon' });
+    // 改行・改ページ制御文字が単一スペースへ畳まれ、同一言語の最新版が選ばれる。
+    expect(detail.flavorText).toEqual({
+      ja: 'うまれたときから せなかに しょくぶつの たねが あって、',
+      en: 'There is a plant seed on its back.',
+    });
   });
 
   it('returns proper nouns (types and abilities) in both ja and en', async () => {
@@ -549,5 +615,85 @@ describe('computeTypeMatchups', () => {
     ]);
     expect(matchups.resistances).toEqual([]);
     expect(matchups.immunities).toEqual([]);
+  });
+});
+
+function flavor(text: string, language: string, version = 'v'): PokeApiFlavorTextEntry {
+  return {
+    flavor_text: text,
+    language: { name: language, url: '' },
+    version: { name: version, url: '' },
+  };
+}
+
+function genusOf(genus: string, language: string): PokeApiGenus {
+  return { genus, language: { name: language, url: '' } };
+}
+
+describe('formatFlavorText', () => {
+  it('collapses newlines, form feeds and whitespace runs to single spaces and trims', () => {
+    expect(formatFlavorText('A strange\nseed was\fplanted')).toBe('A strange seed was planted');
+    expect(formatFlavorText('  leading\n\n and\f\f trailing  ')).toBe('leading and trailing');
+    expect(formatFlavorText('うまれた\nときから\fせなか')).toBe('うまれた ときから せなか');
+  });
+});
+
+describe('buildLocalizedFlavorText', () => {
+  it('selects ja-Hrkt/ja for ja and en for en, formatting the chosen text', () => {
+    const entries = [
+      flavor('Old\nEnglish', 'en', 'red'),
+      flavor('New\fEnglish', 'en', 'shield'),
+      flavor('にほんご\nのせつめい', 'ja-Hrkt', 'shield'),
+    ];
+
+    expect(buildLocalizedFlavorText(entries)).toEqual({
+      ja: 'にほんご のせつめい',
+      en: 'New English',
+    });
+  });
+
+  it('falls back ja to the en entry when no ja text exists', () => {
+    const entries = [flavor('Only\nEnglish', 'en')];
+
+    expect(buildLocalizedFlavorText(entries)).toEqual({
+      ja: 'Only English',
+      en: 'Only English',
+    });
+  });
+
+  it('uses ja-Hrkt over ja when both are present', () => {
+    const entries = [flavor('hrkt', 'ja-Hrkt'), flavor('kanji', 'ja'), flavor('english', 'en')];
+
+    expect(buildLocalizedFlavorText(entries).ja).toBe('hrkt');
+  });
+
+  it('tolerates undefined or empty entries and uses the fallback', () => {
+    expect(buildLocalizedFlavorText(undefined)).toEqual({ ja: '', en: '' });
+    expect(buildLocalizedFlavorText([], 'n/a')).toEqual({ ja: 'n/a', en: 'n/a' });
+  });
+});
+
+describe('buildLocalizedGenus', () => {
+  it('selects ja-Hrkt/ja for ja and en for en', () => {
+    const genera = [genusOf('ねずみポケモン', 'ja-Hrkt'), genusOf('Mouse Pokémon', 'en')];
+
+    expect(buildLocalizedGenus(genera)).toEqual({
+      ja: 'ねずみポケモン',
+      en: 'Mouse Pokémon',
+    });
+  });
+
+  it('falls back ja to en when no ja genus exists', () => {
+    const genera = [genusOf('Mouse Pokémon', 'en')];
+
+    expect(buildLocalizedGenus(genera)).toEqual({
+      ja: 'Mouse Pokémon',
+      en: 'Mouse Pokémon',
+    });
+  });
+
+  it('tolerates undefined or empty genera and uses the fallback', () => {
+    expect(buildLocalizedGenus(undefined)).toEqual({ ja: '', en: '' });
+    expect(buildLocalizedGenus([], 'unknown')).toEqual({ ja: 'unknown', en: 'unknown' });
   });
 });
