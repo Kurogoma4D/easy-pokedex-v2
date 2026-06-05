@@ -22,13 +22,17 @@ import { FavoritesService } from './favorites.service';
       type="button"
       class="favorite"
       [class.is-active]="active()"
+      [class.has-error]="failed()"
       [attr.aria-pressed]="active()"
       [attr.aria-label]="label()"
-      [title]="label()"
+      [title]="failed() ? errorMessage() : label()"
       (click)="toggle($event)"
     >
       <app-icon [name]="active() ? 'heart' : 'heart-outline'" />
     </button>
+    @if (failed()) {
+      <span class="favorite__error" role="alert">{{ errorMessage() }}</span>
+    }
   `,
   styles: `
     .favorite {
@@ -47,6 +51,21 @@ import { FavoritesService } from './favorites.service';
       /* Lit-LCD accent marks the active (favorited) state. */
       color: var(--lcd-2);
     }
+    .favorite.has-error {
+      border-color: var(--color-danger, var(--color-border));
+    }
+    .favorite__error {
+      /* Visually hidden, but announced to assistive tech so a failed toggle is not silent. */
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
   `,
 })
 export class FavoriteButton {
@@ -63,6 +82,11 @@ export class FavoriteButton {
     const messages = this.localeService.messages();
     return this.active() ? messages['favorites.remove'] : messages['favorites.add'];
   });
+  /** 直近のトグル失敗がこのボタンの図鑑番号で起きたか。失敗時にフィードバックを出す。 */
+  protected readonly failed = computed(() => this.favorites.lastError() === this.pokemonId());
+  protected readonly errorMessage = computed(
+    () => this.localeService.messages()['favorites.toggleError'],
+  );
 
   /**
    * トグルを実行する。カード全体がリンクの一覧では、クリックが詳細遷移へ伝播しないよう停止する。

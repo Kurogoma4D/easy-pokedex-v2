@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -159,7 +160,10 @@ export class FavoritesPage {
     effect(() => {
       const ids = this.favorites.ids();
       if (!this.auth.isAuthenticated()) {
-        this._items.set(new Map());
+        // 既に空なら新しい Map へ差し替えない（無用な再描画を避ける）。
+        if (untracked(() => this._items()).size > 0) {
+          this._items.set(new Map());
+        }
         return;
       }
       void this.loadMissing(ids);
@@ -172,9 +176,14 @@ export class FavoritesPage {
     void this.favorites.refresh();
   }
 
-  /** まだ表示データを持たない図鑑番号について、詳細 API から取得して取り込む。 */
+  /**
+   * まだ表示データを持たない図鑑番号について、詳細 API から取得して取り込む。
+   *
+   * 追従 effect から呼ばれるため、`_items` は `untracked` で読む。effect の依存を
+   * `favorites.ids()` / `auth.isAuthenticated()` だけに限定し、自身の書き込みで再発火しないようにする。
+   */
   private async loadMissing(ids: readonly number[]): Promise<void> {
-    const map = this._items();
+    const map = untracked(() => this._items());
     const missing = ids.filter((id) => !map.has(id));
     if (missing.length === 0) {
       // 解除された id を取り除き、表示を集合に合わせる。
@@ -184,34 +193,60 @@ export class FavoritesPage {
     this._loading.set(true);
     this._error.set(false);
     try {
-      const fetched = await Promise.all(missing.map((id) => this.fetchSummary(id)));
-      this._items.update((current) => {
-        const next = new Map(current);
-        for (const item of fetched) {
-          next.set(item.id, item);
+      // 1 件の失敗で同一バッチの成功分まで巻き込まないよう allSettled で個別に扱う。
+      const results = await Promise.allSettled(missing.map((id) => this.fetchSummary(id)));
+      const fetched: PokemonListItem[] = [];
+      let failed = false;
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          fetched.push(result.value);
+        } else {
+          failed = true;
         }
-        return next;
-      });
+      }
+      if (fetched.length > 0) {
+        this._items.update((current) => {
+          const next = new Map(current);
+          for (const item of fetched) {
+            next.set(item.id, item);
+          }
+          return next;
+        });
+      }
       this.pruneTo(ids);
-    } catch {
-      this._error.set(true);
+      // 全件失敗（成功 0 件）のときだけ全画面エラーへ倒す。一部成功なら成功分のカードは残す。
+      this._error.set(failed && fetched.length === 0);
     } finally {
       this._loading.set(false);
     }
   }
 
-  /** 表示データの集合をお気に入り集合に合わせ、解除済みの id を取り除く。 */
+  /**
+   * 表示データの集合をお気に入り集合に合わせ、解除済みの id を取り除く。
+   *
+   * 追従 effect 経由で呼ばれるため `_items` は `untracked` で読み、かつ取り除く対象が
+   * 無いときは新しい Map への差し替え（常に新参照になりシグナルが再発火する）を避ける。
+   */
   private pruneTo(ids: readonly number[]): void {
     const keep = new Set(ids);
-    this._items.update((current) => {
-      const next = new Map<number, PokemonListItem>();
-      for (const [id, item] of current) {
-        if (keep.has(id)) {
-          next.set(id, item);
-        }
+    const current = untracked(() => this._items());
+    let removes = false;
+    for (const id of current.keys()) {
+      if (!keep.has(id)) {
+        removes = true;
+        break;
       }
-      return next;
-    });
+    }
+    if (!removes) {
+      return;
+    }
+    const next = new Map<number, PokemonListItem>();
+    for (const [id, item] of current) {
+      if (keep.has(id)) {
+        next.set(id, item);
+      }
+    }
+    this._items.set(next);
   }
 
   /** 詳細 API のレスポンスをカード表示用の一覧アイテムへ写像して取得する。 */

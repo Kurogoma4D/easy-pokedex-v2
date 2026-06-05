@@ -89,10 +89,35 @@ describe('FavoritesPage', () => {
     // 各お気に入りの表示データを詳細 API から取得する。
     httpMock.expectOne('/api/pokemon/25').flush(detailStub(25, 'Pikachu'));
     httpMock.expectOne('/api/pokemon/1').flush(detailStub(1, 'Bulbasaur'));
-    await fixture.whenStable();
+    // allSettled の解決（複数マイクロタスク）を待ってからシグナル反映を描画する。
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    TestBed.tick();
 
     const cards = (fixture.nativeElement as HTMLElement).querySelectorAll('app-pokemon-card');
     expect(cards.length).toBe(2);
+  });
+
+  it('keeps the successfully fetched cards when one summary request fails', async () => {
+    await signIn();
+    TestBed.tick();
+    httpMock
+      .expectOne('/api/favorites')
+      .flush({ favorites: [{ pokemonId: 25 }, { pokemonId: 1 }] });
+    await Promise.resolve();
+
+    const fixture = TestBed.createComponent(FavoritesPage);
+    await fixture.whenStable();
+
+    httpMock.expectOne('/api/pokemon/25').flush(detailStub(25, 'Pikachu'));
+    httpMock
+      .expectOne('/api/pokemon/1')
+      .flush({ error: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    TestBed.tick();
+
+    // 1 件失敗しても成功分のカードは残す（全滅させない）。
+    const cards = (fixture.nativeElement as HTMLElement).querySelectorAll('app-pokemon-card');
+    expect(cards.length).toBe(1);
   });
 
   it('shows an empty message when the user has no favorites', async () => {

@@ -25,9 +25,17 @@ export class FavoritesService {
   private readonly auth = inject(AuthService);
 
   private readonly _ids = signal<ReadonlySet<number>>(new Set());
+  // トグル送信が失敗してロールバックした直近の図鑑番号。成功・新たな操作で null へ戻す。
+  private readonly _lastError = signal<number | null>(null);
 
   /** ログインユーザーのお気に入り図鑑番号の集合。未ログインなら空。 */
   readonly ids = computed<readonly number[]>(() => [...this._ids()]);
+
+  /**
+   * 直近のトグル送信失敗（add/remove）が起きた図鑑番号。失敗が無ければ null。
+   * 楽観反映はロールバック済みのため、呼び出し側はこれを見てフィードバックを出せる。
+   */
+  readonly lastError = this._lastError.asReadonly();
 
   constructor() {
     // 認証状態に追従する。ログイン（ユーザー確定）で一覧を取り込み、ログアウトで集合を空へ倒す。
@@ -71,6 +79,7 @@ export class FavoritesService {
     if (this._ids().has(pokemonId)) {
       return;
     }
+    this._lastError.set(null);
     this.applyOptimistic(pokemonId, true);
     try {
       await firstValueFrom(
@@ -78,6 +87,7 @@ export class FavoritesService {
       );
     } catch {
       this.applyOptimistic(pokemonId, false);
+      this._lastError.set(pokemonId);
     }
   }
 
@@ -86,6 +96,7 @@ export class FavoritesService {
     if (!this._ids().has(pokemonId)) {
       return;
     }
+    this._lastError.set(null);
     this.applyOptimistic(pokemonId, false);
     try {
       await firstValueFrom(
@@ -93,6 +104,7 @@ export class FavoritesService {
       );
     } catch {
       this.applyOptimistic(pokemonId, true);
+      this._lastError.set(pokemonId);
     }
   }
 

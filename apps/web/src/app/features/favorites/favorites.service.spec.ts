@@ -108,6 +108,47 @@ describe('FavoritesService', () => {
     expect(service.isFavorite(7)).toBe(false);
   });
 
+  it('surfaces the failing id via lastError when an add is rolled back', async () => {
+    await signIn();
+    service = TestBed.inject(FavoritesService);
+    TestBed.tick();
+    httpMock.expectOne('/api/favorites').flush({ favorites: [] });
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(service.lastError()).toBeNull();
+    const pending = service.add(7);
+    httpMock
+      .expectOne('/api/favorites')
+      .flush({ error: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await pending;
+
+    expect(service.lastError()).toBe(7);
+  });
+
+  it('clears lastError on a subsequent successful toggle', async () => {
+    await signIn();
+    service = TestBed.inject(FavoritesService);
+    TestBed.tick();
+    httpMock.expectOne('/api/favorites').flush({ favorites: [] });
+    await Promise.resolve();
+    TestBed.tick();
+
+    const failing = service.add(7);
+    httpMock
+      .expectOne('/api/favorites')
+      .flush({ error: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await failing;
+    expect(service.lastError()).toBe(7);
+
+    const ok = service.add(8);
+    expect(service.lastError()).toBeNull();
+    httpMock.expectOne('/api/favorites').flush(null, { status: 204, statusText: 'No Content' });
+    await ok;
+
+    expect(service.lastError()).toBeNull();
+  });
+
   it('optimistically removes a favorite and DELETEs the id', async () => {
     await signIn();
     service = TestBed.inject(FavoritesService);

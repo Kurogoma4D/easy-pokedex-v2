@@ -103,6 +103,8 @@ const ja = {
   'favorites.loading': 'よみこみちゅう…',
   'favorites.error': 'おきにいりの よみこみに しっぱいしました。',
   'favorites.loginRequired': 'おきにいりを みるには ログインして ください。',
+  'favorites.toggleError':
+    'おきにいりの こうしんに しっぱいしました。もう いちど おためしください。',
 } as const;
 
 export type MessageKey = keyof typeof ja;
@@ -208,6 +210,7 @@ const en: MessageDictionary = {
   'favorites.loading': 'Loading…',
   'favorites.error': 'Failed to load favorites.',
   'favorites.loginRequired': 'Log in to see your favorites.',
+  'favorites.toggleError': 'Failed to update favorites. Please try again.',
 };
 
 export const MESSAGES: Record<Locale, MessageDictionary> = {
