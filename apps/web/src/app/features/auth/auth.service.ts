@@ -14,12 +14,22 @@ import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../core/api-base-url';
 import type { AuthErrorResponse, AuthUser, AuthUserResponse, Credentials } from './auth.model';
 
-/** 登録・ログインの結果。失敗時はフロントの文言キーへ写像できる種別を返す。 */
+/**
+ * 登録・ログインの結果。失敗時はフロントの文言キーへ写像できる種別を返す。
+ * バリデーション失敗は BFF の `details`（フィールド単位エラー）に基づき、
+ * email/password のどちらが不正かを区別して文言を出し分けられるようにする。
+ */
 export type AuthActionResult =
   | { readonly ok: true }
   | {
       readonly ok: false;
-      readonly kind: 'validation' | 'invalid_credentials' | 'duplicate' | 'unknown';
+      readonly kind:
+        | 'validation_email'
+        | 'validation_password'
+        | 'validation'
+        | 'invalid_credentials'
+        | 'duplicate'
+        | 'unknown';
     };
 
 @Injectable({ providedIn: 'root' })
@@ -62,7 +72,7 @@ export class AuthService {
       this._user.set(res.user);
       return { ok: true };
     } catch (error) {
-      return this.toFailure(error, { 409: 'duplicate', 400: 'validation' });
+      return this.toFailure(error, { 409: 'duplicate' });
     }
   }
 
@@ -76,7 +86,7 @@ export class AuthService {
       this._user.set(res.user);
       return { ok: true };
     } catch (error) {
-      return this.toFailure(error, { 401: 'invalid_credentials', 400: 'validation' });
+      return this.toFailure(error, { 401: 'invalid_credentials' });
     }
   }
 
@@ -92,22 +102,39 @@ export class AuthService {
     }
   }
 
-  /** HTTP エラーをアクション失敗種別へ写像する。マップに無いステータスは unknown とする。 */
+  /**
+   * HTTP エラーをアクション失敗種別へ写像する。
+   * 400 はバリデーション失敗として `details`（フィールド単位エラー）を見て email/password を区別する。
+   * email と password の両方が不正なときは email を優先し、フィールド不明なら汎用の validation に倒す。
+   * マップにも該当しないステータスは unknown とする。
+   */
   private toFailure(
     error: unknown,
-    statusMap: Readonly<Record<number, 'validation' | 'invalid_credentials' | 'duplicate'>>,
+    statusMap: Readonly<Record<number, 'invalid_credentials' | 'duplicate'>>,
   ): AuthActionResult {
     if (error instanceof HttpErrorResponse) {
+      if (error.status === 400) {
+        return { ok: false, kind: this.validationKind(error.error as AuthErrorResponse | null) };
+      }
       const kind = statusMap[error.status];
       if (kind !== undefined) {
         return { ok: false, kind };
       }
-      // BFF のエラー本文形に合わせて details があればバリデーション扱いに寄せる。
-      const body = error.error as AuthErrorResponse | null;
-      if (body?.details !== undefined && body.details.length > 0) {
-        return { ok: false, kind: 'validation' };
-      }
     }
     return { ok: false, kind: 'unknown' };
+  }
+
+  /** バリデーション失敗本文のフィールド種別を、表示文言と対応する種別へ写像する。 */
+  private validationKind(
+    body: AuthErrorResponse | null,
+  ): 'validation_email' | 'validation_password' | 'validation' {
+    const fields = body?.details?.map((detail) => detail.field) ?? [];
+    if (fields.includes('email')) {
+      return 'validation_email';
+    }
+    if (fields.includes('password')) {
+      return 'validation_password';
+    }
+    return 'validation';
   }
 }

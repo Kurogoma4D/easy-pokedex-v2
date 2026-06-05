@@ -8,8 +8,16 @@ import type { Credentials } from './auth.model';
 import { AuthService } from './auth.service';
 
 /** 登録失敗種別をフロントの文言キーへ写像する。 */
-const ERROR_KEYS: Readonly<Record<'validation' | 'duplicate' | 'unknown', MessageKey>> = {
-  validation: 'auth.error.passwordTooShort',
+const ERROR_KEYS: Readonly<
+  Record<
+    'validation_email' | 'validation_password' | 'validation' | 'duplicate' | 'unknown',
+    MessageKey
+  >
+> = {
+  validation_email: 'auth.error.emailInvalid',
+  validation_password: 'auth.error.passwordTooShort',
+  // フィールド不明のバリデーション失敗（details 無し）は入力未充足として扱う。
+  validation: 'auth.error.required',
   duplicate: 'auth.error.duplicateEmail',
   unknown: 'auth.error.unknown',
 };

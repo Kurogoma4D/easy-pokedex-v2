@@ -78,7 +78,7 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBe(false);
   });
 
-  it('maps a 400 login to validation', async () => {
+  it('maps a 400 with no field details to generic validation', async () => {
     const pending = service.login({ email: 'bad', password: 'short' });
     httpMock
       .expectOne('/api/auth/login')
@@ -86,6 +86,53 @@ describe('AuthService', () => {
 
     const result = await pending;
     expect(result).toEqual({ ok: false, kind: 'validation' });
+  });
+
+  it('maps a 400 email-field error to validation_email', async () => {
+    const pending = service.login({ email: 'bad', password: 'password123' });
+    httpMock
+      .expectOne('/api/auth/login')
+      .flush(
+        {
+          error: 'invalid input',
+          details: [{ field: 'email', message: 'email format is invalid' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+    const result = await pending;
+    expect(result).toEqual({ ok: false, kind: 'validation_email' });
+  });
+
+  it('maps a 400 password-field error to validation_password', async () => {
+    const pending = service.register({ email: 'a@example.com', password: 'short' });
+    httpMock.expectOne('/api/auth/register').flush(
+      {
+        error: 'invalid input',
+        details: [{ field: 'password', message: 'password must be at least 8 characters' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    const result = await pending;
+    expect(result).toEqual({ ok: false, kind: 'validation_password' });
+  });
+
+  it('prioritizes the email field when both email and password are invalid', async () => {
+    const pending = service.register({ email: 'bad', password: 'short' });
+    httpMock.expectOne('/api/auth/register').flush(
+      {
+        error: 'invalid input',
+        details: [
+          { field: 'email', message: 'email format is invalid' },
+          { field: 'password', message: 'password must be at least 8 characters' },
+        ],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    const result = await pending;
+    expect(result).toEqual({ ok: false, kind: 'validation_email' });
   });
 
   it('registers and stores the returned user', async () => {

@@ -67,6 +67,19 @@ describe('Login', () => {
     );
   });
 
+  it('shows an email-format error when validation fails on the email field', async () => {
+    auth.loginResult = { ok: false, kind: 'validation_email' };
+    const fixture = TestBed.createComponent(Login);
+
+    await submit(fixture, { email: 'bad', password: 'password123' });
+    await fixture.whenStable();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.auth-form__error')?.textContent).toContain(
+      'メールアドレスの けいしきが ただしく ありません。',
+    );
+  });
+
   it('redirects to a safe in-app target when provided', async () => {
     const fixture = TestBed.createComponent(Login);
     fixture.componentRef.setInput('redirect', '/detail/25');
