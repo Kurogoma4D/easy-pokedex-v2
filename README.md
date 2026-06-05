@@ -60,6 +60,49 @@ pnpm build     # 型チェック / ビルド
 pnpm test      # Vitest
 ```
 
+## データベース（Postgres）
+
+BFF はアカウント・お気に入りなどの永続化に Postgres を利用します。ローカル開発では
+docker-compose で Postgres を起動し、BFF からマイグレーションを適用します。
+
+### 環境変数
+
+接続情報とセッション秘密鍵は環境変数で設定します。`.env.example` をリポジトリ直下に
+コピーして `.env` を作成し、値を編集してください（`.env` は Git 管理対象外です）。
+
+```bash
+cp .env.example .env
+# SESSION_SECRET は十分に長いランダム文字列に変更する（例: openssl rand -hex 32）
+```
+
+| 変数 | 説明 |
+| --- | --- |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Postgres の接続情報。docker-compose と共有する。 |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | 接続先ホスト・ポート（既定 `localhost` / `5432`）。 |
+| `DATABASE_URL` | 接続文字列を直接指定する場合に使用。設定時は `POSTGRES_*` より優先される。 |
+| `SESSION_SECRET` | セッション Cookie の署名・暗号化に用いる秘密鍵。 |
+
+### 起動とマイグレーション
+
+```bash
+# Postgres を起動
+docker compose up -d db
+
+# マイグレーションを適用（schema_migrations で適用済みを管理する）
+pnpm --filter bff migrate
+
+# BFF を起動
+pnpm --filter bff dev
+```
+
+本番ビルドではマイグレーション SQL を dist に同梱し、`pnpm --filter bff migrate:prod`
+で適用します。Postgres を停止・削除するには次を実行します。
+
+```bash
+docker compose down      # コンテナを停止（データは残る）
+docker compose down -v   # ボリュームごと削除（データも消える）
+```
+
 ## 仕様
 
 詳細な要件は [`spec.md`](./spec.md) を参照してください。
