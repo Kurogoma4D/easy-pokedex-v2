@@ -35,4 +35,28 @@ describe('TypeChip', () => {
 
     expect(chip.textContent).toContain('Fire');
   });
+
+  it('prefers the provided localized name over the static dictionary', async () => {
+    const fixture = TestBed.createComponent(TypeChip);
+    fixture.componentRef.setInput('type', 'grass');
+    fixture.componentRef.setInput('name', { ja: 'くさタイプ', en: 'Grass type' });
+    await fixture.whenStable();
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('.type-chip') as HTMLElement;
+
+    expect(chip.textContent).toContain('くさタイプ');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await fixture.whenStable();
+
+    expect(chip.textContent).toContain('Grass type');
+  });
+
+  it('falls back to the static dictionary when no name is provided', async () => {
+    const fixture = TestBed.createComponent(TypeChip);
+    fixture.componentRef.setInput('type', 'water');
+    await fixture.whenStable();
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('.type-chip') as HTMLElement;
+
+    expect(chip.textContent).toContain('みず');
+  });
 });
