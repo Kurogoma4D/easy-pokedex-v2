@@ -262,7 +262,10 @@ export async function searchPokemon(
     const pageIds = candidates.slice(params.offset, params.offset + params.limit).map((c) => c.id);
     const materials = await fetchMaterials(client, pageIds, options, concurrency);
     const results = materials.map(toListItem);
-    return buildResponse(results, total, params);
+    // ページネーションはマッチ集合に対して進める。ページの `/pokemon` 404 で results が
+    // pageIds より少なくなっても、消費した候補数（pageIds.length）で nextOffset を計算し、
+    // 隙間・重複の無い 1 ページ分を確実に前進させる。
+    return buildResponse(results, total, pageIds.length, params);
   }
 
   // マッチ判定は species のみで行い、`/pokemon` の取得はページ分の候補に限って遅延させる。
@@ -279,7 +282,11 @@ export async function searchPokemon(
     concurrency,
   );
   const results = pageMaterials.map(toListItem);
-  return buildResponse(results, total, params);
+  // count はマッチした species 件数を権威とする一方、results はページの `/pokemon` 404 で
+  // 少なくなりうる。ページネーションは消費したマッチ候補数（page.length）で前進させ、
+  // results.length に依存させない。これにより 404 で 1 体落ちても次ページが落ちた候補の次から
+  // 始まり、その次の候補を重複返却したり落ちた枠を取りこぼしたりしない。
+  return buildResponse(results, total, page.length, params);
 }
 
 /**
@@ -377,13 +384,19 @@ async function fetchMaterials(
   return materials;
 }
 
+/**
+ * `consumed` はこのページで消費したマッチ候補数（ページスライスの長さ）であり、results の
+ * 長さではない。ページの `/pokemon` 404 で results.length < consumed になっても、nextOffset は
+ * 消費した候補数で前進させ、隙間・重複の無いページングを保つ。
+ */
 function buildResponse(
   results: readonly PokemonListItem[],
   total: number,
+  consumed: number,
   params: PokemonSearchParams,
 ): PokemonSearchResponse {
-  const consumed = params.offset + results.length;
-  const nextOffset = consumed < total ? consumed : null;
+  const nextStart = params.offset + consumed;
+  const nextOffset = nextStart < total ? nextStart : null;
   return {
     count: total,
     offset: params.offset,
