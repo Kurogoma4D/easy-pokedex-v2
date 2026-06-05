@@ -10,5 +10,13 @@ export const routes: Routes = [
     path: 'detail/:id',
     loadComponent: () => import('./features/detail/pokemon-detail').then((m) => m.PokemonDetail),
   },
+  {
+    path: 'login',
+    loadComponent: () => import('./features/auth/login').then((m) => m.Login),
+  },
+  {
+    path: 'register',
+    loadComponent: () => import('./features/auth/register').then((m) => m.Register),
+  },
   { path: '**', redirectTo: 'list' },
 ];
