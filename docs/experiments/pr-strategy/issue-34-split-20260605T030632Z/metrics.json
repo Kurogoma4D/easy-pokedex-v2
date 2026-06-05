@@ -1,0 +1,33 @@
+{
+  "run_id": "issue-34-split-20260605T030632Z",
+  "issue": 34,
+  "approach": "split",
+  "started_at": "2026-06-05T03:06:32Z",
+  "pr_first_opened_at": "2026-06-05T03:09:14Z",
+  "ready_at": "2026-06-05T03:15:26Z",
+  "elapsed_seconds": 534,
+  "prs": [
+    {
+      "number": 47,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/47",
+      "opened_at": "2026-06-05T03:09:14Z",
+      "part": 1,
+      "base": "main",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    },
+    {
+      "number": 48,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/48",
+      "opened_at": "2026-06-05T03:14:13Z",
+      "part": 2,
+      "base": "issue-34-split-part1",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    }
+  ],
+  "split_count": 2,
+  "review_rounds": 2,
+  "findings_deferred": 0,
+  "notes": "Part1=normalizeKana 純関数+単体テスト(挙動不変, PR#47, LGTM一発)。Part2=normalize へ配線+search/e2e テスト(PR#48, base=part1, Closes #34, LGTM一発)。両 PR とも初回 LGTM で修正ターン無し。E2E スタブは Part2 で最初からクエリ依存に実装され肯定/否定ケースあり。"
+}

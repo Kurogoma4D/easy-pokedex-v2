@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { resolveCandidates, searchPokemon } from './search.js';
+import { normalizeKana, resolveCandidates, searchPokemon } from './search.js';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -649,5 +649,160 @@ describe('resolveCandidates', () => {
       { id: 1, slug: 'bulbasaur' },
       { id: 43, slug: 'oddish' },
     ]);
+  });
+});
+
+describe('normalizeKana', () => {
+  it('ひらがなをカタカナへ写す', () => {
+    expect(normalizeKana('りざ')).toBe('リザ');
+    expect(normalizeKana('ふしぎだね')).toBe('フシギダネ');
+  });
+
+  it('半角カタカナを全角カタカナへ畳み込む', () => {
+    expect(normalizeKana('ﾘｻﾞｰﾄﾞﾝ')).toBe('リザードン');
+  });
+
+  it('全角英数字を半角へ畳み込む', () => {
+    expect(normalizeKana('Ｐｉｋａ１２３')).toBe('Pika123');
+  });
+
+  it('カタカナはそのまま保つ', () => {
+    expect(normalizeKana('リザード')).toBe('リザード');
+  });
+
+  it('長音符と小書きかなを扱う', () => {
+    // 長音符（ー）はかな種別を持たないため写像対象外でそのまま残る。
+    expect(normalizeKana('ー')).toBe('ー');
+    // 小書きひらがな（ぁ U+3041 / ゃ U+3083 等）も対応する小書きカタカナへ写る。
+    expect(normalizeKana('ぁゃっ')).toBe('ァャッ');
+    expect(normalizeKana('しゃりたん')).toBe('シャリタン');
+  });
+
+  it('ASCII はそのまま保つ', () => {
+    expect(normalizeKana('Charizard')).toBe('Charizard');
+    expect(normalizeKana('riza')).toBe('riza');
+  });
+});
+
+/**
+ * かな正規化が検索レベルで効くこと（Issue #34）。共有 FIXTURES の既存アサーション（fire/saur/charm 等）
+ * と衝突しないよう、リザードン系統の専用 fixture（dragon タイプ・generation-iii）を別建てで使う。
+ * クエリと候補名の双方を normalize に通すため、ひらがな／カタカナ／半角カタカナの入力が同一の
+ * カタカナ名結果へ収束する。
+ */
+describe('searchPokemon kana normalization (#34)', () => {
+  const KANA_FIXTURES: readonly Fixture[] = [
+    {
+      id: 5,
+      name: 'charmeleon',
+      jaName: 'リザード',
+      enName: 'Charmeleon',
+      types: ['dragon'],
+      generation: 'generation-iii',
+    },
+    {
+      id: 6,
+      name: 'charizard',
+      jaName: 'リザードン',
+      enName: 'Charizard',
+      types: ['dragon'],
+      generation: 'generation-iii',
+    },
+    {
+      id: 56,
+      name: 'mankey',
+      jaName: 'オコリザル',
+      enName: 'Mankey',
+      types: ['dragon'],
+      generation: 'generation-iii',
+    },
+    {
+      id: 999,
+      name: 'gimmighoul',
+      jaName: 'コレクレー',
+      enName: 'Gimmighoul',
+      types: ['dragon'],
+      generation: 'generation-iii',
+    },
+  ];
+
+  function kanaById(id: number): Fixture {
+    const f = KANA_FIXTURES.find((x) => x.id === id);
+    if (f === undefined) throw new Error(`no fixture for ${id}`);
+    return f;
+  }
+
+  function makeKanaFetchImpl() {
+    return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+
+      if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+        return jsonResponse({
+          count: KANA_FIXTURES.length,
+          next: null,
+          previous: null,
+          results: KANA_FIXTURES.map((f) => ({
+            name: f.name,
+            url: `${UPSTREAM}/pokemon/${f.id}/`,
+          })),
+        });
+      }
+
+      const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+      if (speciesMatch !== null) {
+        return jsonResponse(speciesBody(kanaById(Number(speciesMatch[1]))));
+      }
+
+      const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+      if (pokemonMatch !== null) {
+        return jsonResponse(pokemonBody(kanaById(Number(pokemonMatch[1]))));
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+  }
+
+  it('ひらがな入力がカタカナ名にヒットする', async () => {
+    const client = makeClient(makeKanaFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    // 「りざ」は リザード(5)/リザードン(6)/オコリザル(56) のカタカナ名に含まれる。
+    const result = await searchPokemon(client, { name: 'りざ', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([5, 6, 56]);
+    expect(result.count).toBe(3);
+  });
+
+  it('ひらがな・カタカナ・半角カタカナの入力が同一結果へ収束する', async () => {
+    const run = async (name: string): Promise<readonly number[]> => {
+      const client = makeClient(makeKanaFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+      const result = await searchPokemon(client, { name, limit: 20, offset: 0 });
+      return result.results.map((r) => r.id);
+    };
+
+    const hiragana = await run('りざ');
+    const katakana = await run('リザ');
+    const halfwidth = await run('ﾘｻﾞ');
+
+    expect(katakana).toEqual([5, 6, 56]);
+    expect(hiragana).toEqual(katakana);
+    expect(halfwidth).toEqual(katakana);
+  });
+
+  it('カタカナ入力の従来の結果が変わらない', async () => {
+    const client = makeClient(makeKanaFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    // 「リザードン」はリザードン(6)のみに一致する。
+    const result = await searchPokemon(client, { name: 'リザードン', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([6]);
+  });
+
+  it('英語名検索の挙動に影響しない', async () => {
+    const client = makeClient(makeKanaFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+
+    // 英語名 "charizard" は charizard(6) のみ。NFKC は ASCII に無作用でかな写像も発生しない。
+    const result = await searchPokemon(client, { name: 'charizard', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([6]);
   });
 });

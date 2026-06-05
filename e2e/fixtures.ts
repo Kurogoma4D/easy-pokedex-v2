@@ -137,13 +137,62 @@ const fulfillJson = (route: Route, body: unknown): Promise<void> =>
     body: JSON.stringify(body),
   });
 
+const HIRAGANA_START = 0x3041;
+const HIRAGANA_END = 0x3096;
+const HIRAGANA_TO_KATAKANA_OFFSET = 0x60;
+
+/**
+ * BFF（`apps/bff/src/pokeapi/search.ts` の `normalize`）と同じ正規化をブラウザ層で再現する。
+ * NFKC で全角英数字・半角カタカナを畳み込み、ひらがなを +0x60 のシフトでカタカナへ写し、
+ * trim/lowercase する。これにより検索スタブが本物の BFF と同じ判定で結果を返し、
+ * かな正規化を E2E が実際に通る（単に固定値を返すだけにならない）。
+ */
+function normalizeQuery(value: string): string {
+  const folded = value.trim().toLowerCase().normalize('NFKC');
+  let result = '';
+  for (const char of folded) {
+    const code = char.codePointAt(0)!;
+    if (code >= HIRAGANA_START && code <= HIRAGANA_END) {
+      result += String.fromCodePoint(code + HIRAGANA_TO_KATAKANA_OFFSET);
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+/** 検索結果候補の正規化済み名前と、正規化クエリが部分一致するかを判定する。 */
+function matchesSearchCandidate(query: string): boolean {
+  const normalizedQuery = normalizeQuery(query);
+  if (normalizedQuery.length === 0) {
+    return false;
+  }
+  return SEARCH_RESULTS.results.some((r) =>
+    [r.name.ja, r.name.en, String(r.id)].some((haystack) =>
+      normalizeQuery(haystack).includes(normalizedQuery),
+    ),
+  );
+}
+
+const EMPTY_SEARCH_RESULTS = {
+  count: 0,
+  offset: 0,
+  limit: 24,
+  nextOffset: null,
+  results: [],
+} as const;
+
 /**
  * BFF（`/api/pokemon/**`）への通信をブラウザ層でスタブする。スプライト画像は外部 CDN を叩かないよう
- * 透明 1px の PNG で打ち返し、E2E をネットワーク非依存にする。
+ * 透明 1px の PNG で打ち返し、E2E をネットワーク非依存にする。検索は `name` パラメータを BFF と
+ * 同じ正規化に通し、候補名に部分一致したときだけカタカナ名の結果を返す。
  */
 export async function stubBff(page: Page): Promise<void> {
   await page.route('**/api/pokemon/list**', (route) => fulfillJson(route, LIST_RESULTS));
-  await page.route('**/api/pokemon/search**', (route) => fulfillJson(route, SEARCH_RESULTS));
+  await page.route('**/api/pokemon/search**', (route) => {
+    const name = new URL(route.request().url()).searchParams.get('name') ?? '';
+    return fulfillJson(route, matchesSearchCandidate(name) ? SEARCH_RESULTS : EMPTY_SEARCH_RESULTS);
+  });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
 
   await page.route('https://raw.githubusercontent.com/**', (route) =>

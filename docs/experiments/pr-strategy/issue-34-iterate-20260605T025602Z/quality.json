@@ -1,0 +1,24 @@
+{
+  "issue": 34,
+  "approach": "iterate",
+  "prs": [46],
+  "total_additions": 194,
+  "total_deletions": 13,
+  "scores": {
+    "correctness": 5,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 4
+  },
+  "weighted_total": 98.4,
+  "findings": [
+    {
+      "severity": "low",
+      "location": "e2e/fixtures.ts (normalizeQuery)",
+      "note": "かな正規化(NFKC + ひらがな→カタカナ)が BFF の normalize と E2E スタブで二重実装されている。E2E を決定論的・ネットワーク非依存に保つための意図的トレードオフだが、BFF 側 normalize を変えると E2E スタブも同時更新しないと E2E が回帰を見逃す保守結合。現時点で両者の正規化順序(trim→toLowerCase→NFKC→かな寄せ)は一致。"
+    }
+  ],
+  "verdict": "ひらがな↔カタカナ + 全角半角の正規化を normalize に集約し、クエリと候補名の双方へ一貫適用する的確な修正。英語パスは NFKC が no-op で不変、長音符/小書きかなも範囲外で正しく除外。ユニット + クエリ依存化した E2E(肯定/否定)で実証されており機能 AC を完全に満たす。唯一の難点は E2E スタブにかな正規化を複製した保守結合。"
+}
