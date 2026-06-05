@@ -1,0 +1,33 @@
+{
+  "run_id": "issue-35-split-20260605T035131Z",
+  "issue": 35,
+  "approach": "split",
+  "started_at": "2026-06-05T03:51:31Z",
+  "pr_first_opened_at": "2026-06-05T03:56:23Z",
+  "ready_at": "2026-06-05T04:04:55Z",
+  "elapsed_seconds": 804,
+  "prs": [
+    {
+      "number": 51,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/51",
+      "opened_at": "2026-06-05T03:56:23Z",
+      "part": 1,
+      "base": "main",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    },
+    {
+      "number": 52,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/52",
+      "opened_at": "2026-06-05T04:03:24Z",
+      "part": 2,
+      "base": "issue-35-split-part1",
+      "review_rounds": 1,
+      "findings_deferred": 0
+    }
+  ],
+  "split_count": 2,
+  "review_rounds": 2,
+  "findings_deferred": 0,
+  "notes": "Part1=BFF(types/localization/detail で flavor整形+言語選択+genus+generation+伝説/幻, PR#51, LGTM一発)。Part2=フロント表示(PR#52, base=part1, Closes #35, LGTM一発)。両 PR とも初回 LGTM で修正ターン無し。Part2 では genus も @if で空ガード(方針A が非対称に残した点を最初から対処)、e2e に伝説/幻バッジ用の Mew スタブ追加。BFF 117 + web 57 + e2e 8 passed。"
+}

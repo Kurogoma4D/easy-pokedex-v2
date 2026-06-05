@@ -1,0 +1,20 @@
+{
+  "run_id": "issue-35-iterate-20260605T034104Z",
+  "issue": 35,
+  "approach": "iterate",
+  "started_at": "2026-06-05T03:41:04Z",
+  "pr_first_opened_at": "2026-06-05T03:48:47Z",
+  "ready_at": "2026-06-05T03:50:01Z",
+  "elapsed_seconds": 537,
+  "prs": [
+    {
+      "number": 50,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/50",
+      "opened_at": "2026-06-05T03:48:47Z"
+    }
+  ],
+  "split_count": 1,
+  "review_rounds": 1,
+  "findings_deferred": 0,
+  "notes": "BFF: species から flavor text(整形+言語選択)/genus/generation/伝説・幻フラグを DTO 化、localization.ts に formatFlavorText/buildLocalizedFlavorText/buildLocalizedGenus。フロント: dex-entry パネル・分類・世代・伝説/幻バッジ表示、i18n、言語切替連動。ラウンド1で LGTM(low 2件は non-blocking 助言: genus の空ガード無し / flavor の最新版選択は best-effort)。BFF 109 + web 55 + e2e 5 passed。CSS 警告は非ブロッキング。"
+}
