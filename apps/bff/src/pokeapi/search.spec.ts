@@ -444,6 +444,130 @@ describe('searchPokemon', () => {
     expect(result.count).toBe(0);
   });
 
+  it('does not fetch /pokemon for non-matching name-only candidates', async () => {
+    const fetchImpl = makeFetchImpl();
+    const client = makeClient(fetchImpl);
+
+    // "saur" は bulbasaur(1) のみマッチ。他候補は species だけ引かれ、`/pokemon` は引かれない。
+    const result = await searchPokemon(client, { name: 'saur', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([1]);
+
+    const fetchedPokemonIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    expect(fetchedPokemonIds).toEqual([1]);
+  });
+
+  it('matches an english slug without fetching /pokemon to resolve names', async () => {
+    // species の多言語名に英語スラッグ（identifier）が含まれない場合でも、候補の slug で
+    // 英語識別子マッチが成立する。マッチ判定に `/pokemon` を引かないことを確認する。
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+
+      if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+        return jsonResponse({
+          count: FIXTURES.length,
+          next: null,
+          previous: null,
+          results: FIXTURES.map((f) => ({ name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` })),
+        });
+      }
+
+      const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+      if (speciesMatch !== null) {
+        const f = byId(Number(speciesMatch[1]));
+        // 英語表示名は付けず ja のみにする。英語マッチは候補 slug 経由でしか成立しない。
+        return jsonResponse({
+          id: f.id,
+          name: f.name,
+          names: [{ name: f.jaName, language: { name: 'ja-Hrkt', url: '' } }],
+          flavor_text_entries: [],
+          generation: { name: f.generation, url: '' },
+          evolution_chain: { url: '' },
+          is_legendary: false,
+          is_mythical: false,
+        });
+      }
+
+      const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+      if (pokemonMatch !== null) {
+        return jsonResponse(pokemonBody(byId(Number(pokemonMatch[1]))));
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const result = await searchPokemon(client, { name: 'charmander', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id)).toEqual([4]);
+
+    // マッチ判定で `/pokemon` は引かれない。`/pokemon/4` はページ分の素材取得でのみ引かれる。
+    const fetchedPokemonIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    expect(fetchedPokemonIds).toEqual([4]);
+  });
+
+  it('advances pagination by a full page when a paged /pokemon 404s for a name filter', async () => {
+    // species は全件マッチ（"a" は全 fixture の名前に含まれる）するが、limit=1 のページで引く
+    // `/pokemon` が 404 になるケース。results は空でも nextOffset は消費した候補数（1）で前進し、
+    // 次ページが落ちた候補の「次」から始まる（落ちた候補の取りこぼし・重複返却が起きない）。
+    const matched = FIXTURES.filter((f) => f.enName.toLowerCase().includes('a'));
+    // 先頭の候補だけ `/pokemon` が 404 を返す。
+    const droppedId = matched[0]!.id;
+
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const path = new URL(String(input)).pathname;
+
+      if (path.endsWith('/pokemon') || path.endsWith('/pokemon/')) {
+        return jsonResponse({
+          count: FIXTURES.length,
+          next: null,
+          previous: null,
+          results: FIXTURES.map((f) => ({ name: f.name, url: `${UPSTREAM}/pokemon/${f.id}/` })),
+        });
+      }
+
+      const speciesMatch = /\/pokemon-species\/(\d+)\/?$/.exec(path);
+      if (speciesMatch !== null) {
+        return jsonResponse(speciesBody(byId(Number(speciesMatch[1]))));
+      }
+
+      const pokemonMatch = /\/pokemon\/(\d+)\/?$/.exec(path);
+      if (pokemonMatch !== null) {
+        const id = Number(pokemonMatch[1]);
+        if (id === droppedId) {
+          return new Response('not found', { status: 404 });
+        }
+        return jsonResponse(pokemonBody(byId(id)));
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+    const client = makeClient(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+    const page1 = await searchPokemon(client, { name: 'a', limit: 1, offset: 0 });
+
+    // count はマッチした species 件数を権威とする（落ちた候補も件数に含まれる）。
+    expect(page1.count).toBe(matched.length);
+    // ページの `/pokemon` が 404 のため results は空になりうるが、nextOffset は消費した候補数で前進する。
+    expect(page1.results.map((r) => r.id)).toEqual([]);
+    expect(page1.nextOffset).toBe(1);
+
+    const page2 = await searchPokemon(client, {
+      name: 'a',
+      limit: 1,
+      offset: page1.nextOffset ?? 0,
+    });
+
+    // 次ページは落ちた先頭候補の「次」から始まり、落ちた候補を重複返却しない。
+    expect(page2.results.map((r) => r.id)).toEqual([matched[1]!.id]);
+  });
+
   it('caps in-flight upstream fetches at the configured concurrency', async () => {
     const base = makeFetchImpl();
     let inFlight = 0;
