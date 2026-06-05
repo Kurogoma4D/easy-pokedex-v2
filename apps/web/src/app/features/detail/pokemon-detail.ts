@@ -13,6 +13,25 @@ import type { EvolutionNode, PokemonTypeMatchupGroup } from './pokemon-detail.mo
 /** 種族値バーの上限。単一ステータスの取りうる上限に合わせて 0–100% を割り当てる。 */
 const STAT_MAX = 255;
 
+/**
+ * ブラウザが `audio/ogg` を再生できるかの判定結果。`HTMLAudioElement.canPlayType` は空文字
+ * （= 不可）/ `'maybe'` / `'probably'` を返すため、空文字以外を再生可能とみなす。
+ * `Audio` の生成コストを避けるため、初回参照時に一度だけ生成して結果をキャッシュする。
+ */
+let oggSupportCache: boolean | undefined;
+
+function canPlayOgg(): boolean {
+  if (oggSupportCache === undefined) {
+    oggSupportCache = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/ogg') !== '';
+  }
+  return oggSupportCache;
+}
+
+/** テスト用にキャッシュをクリアし、差し替えた `Audio` で再判定できるようにするフック。 */
+export function resetOggSupportCacheForTesting(): void {
+  oggSupportCache = undefined;
+}
+
 /** ステータス識別子から表示ラベルのメッセージキーを引く。上流が未知の id を返しても識別子を出せるよう Map で扱う。 */
 const STAT_LABEL_KEYS = new Map<string, MessageKey>([
   ['hp', 'stat.hp'],
@@ -136,6 +155,16 @@ function formatMultiplier(multiplier: number): string {
               <dd>{{ generationName() }}</dd>
             </div>
           </dl>
+          <button
+            class="detail__cry"
+            type="button"
+            [disabled]="!canPlayCry()"
+            [attr.aria-label]="cryAriaLabel()"
+            (click)="playCry()"
+          >
+            <app-icon name="sound" />
+            {{ messages()['detail.playCry'] }}
+          </button>
         </header>
 
         @if (flavorText()) {
@@ -383,6 +412,25 @@ function formatMultiplier(multiplier: number): string {
       margin: var(--space-1) 0 0;
       font-size: var(--font-size-display-md);
     }
+    .detail__cry {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: var(--space-2) 0 0;
+      padding: var(--space-2) var(--space-3);
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+      color: var(--color-text);
+      background-color: var(--color-screen);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-chip);
+      cursor: pointer;
+    }
+    .detail__cry:disabled {
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
     .detail__panel {
       padding: var(--space-3);
     }
@@ -588,6 +636,20 @@ export class PokemonDetail {
     const name = GENERATION_BY_ID.get(detail.generation);
     return name ? this.localeService.localizeName(name) : detail.generation;
   });
+  /**
+   * 鳴き声を再生できるか。音源 URL があり（cryUrl !== null）、かつブラウザが `audio/ogg` を
+   * 再生できるときだけ true。どちらかを満たさなければボタンを無効化して穏当にフォールバックする。
+   */
+  protected readonly canPlayCry = computed(() => {
+    const detail = this.data();
+    return detail?.cryUrl != null && canPlayOgg();
+  });
+
+  /** 再生ボタンのアクセシブルラベル。選択ロケールの文言に名前を差し込む。 */
+  protected readonly cryAriaLabel = computed(() =>
+    this.messages()['detail.playCryAria'].replace('{name}', this.name()),
+  );
+
   protected readonly statTotal = computed(() => {
     const detail = this.data();
     return detail ? detail.stats.reduce((sum, stat) => sum + stat.base, 0) : 0;
@@ -650,6 +712,22 @@ export class PokemonDetail {
 
   protected localize(name: LocalizedName): string {
     return this.localeService.localizeName(name);
+  }
+
+  /**
+   * 鳴き声を再生する。音源は PokeAPI の静的 URL を `Audio` で直接参照する（BFF はプロキシしない）。
+   * 再生不可・音源欠落時は何もしない。`play()` はユーザー操作以外やデコード失敗で reject しうるため、
+   * 画面を壊さないよう拒否は握り潰す。
+   */
+  protected playCry(): void {
+    if (!this.canPlayCry()) {
+      return;
+    }
+    const url = this.data()?.cryUrl;
+    if (!url) {
+      return;
+    }
+    void new Audio(url).play().catch(() => undefined);
   }
 
   /** エラー後に同じ id を取得し直す。 */

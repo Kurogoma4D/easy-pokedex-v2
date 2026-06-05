@@ -22,6 +22,10 @@ export const ICON_PATHS = {
   'chevron-right': 'M5 2h2v2H5zM7 4h2v2H7zM9 6h2v2H9zM9 8h2v2H9zM7 10h2v2H7zM5 12h2v2H5z',
   /** ナビゲーション：左シェブロン（戻る）。 */
   'chevron-left': 'M9 2h2v2H9zM7 4h2v2H7zM5 6h2v2H5zM5 8h2v2H5zM7 10h2v2H7zM9 12h2v2H9z',
+  /** 鳴き声再生（スピーカー＋音波）。左の台形スピーカーと右へ広がる 2 本の音波で表す。 */
+  sound:
+    'M5 6h2v4H5zM3 6h2v1H3zM3 9h2v1H3zM7 4h1v8H7zM6 5h1v1H6zM6 10h1v1H6z' +
+    'M9 6h1v4H9zM11 4h1v8h-1zM13 2h1v12h-1z',
   /** リセット／クリア（×）。 */
   close:
     'M2 2h2v2H2zM4 4h2v2H4zM6 6h2v2H6zM8 6h2v2H8zM10 4h2v2h-2zM12 2h2v2h-2z' +

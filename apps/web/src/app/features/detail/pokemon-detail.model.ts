@@ -108,4 +108,6 @@ export interface PokemonDetailResponse {
   readonly isLegendary: boolean;
   /** 幻のポケモンか。 */
   readonly isMythical: boolean;
+  /** 鳴き声（.ogg）の URL。latest 優先・legacy フォールバックで BFF が解決し、無ければ null。 */
+  readonly cryUrl: string | null;
 }

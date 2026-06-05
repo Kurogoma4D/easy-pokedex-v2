@@ -2,8 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocaleService } from '../../i18n/locale.service';
-import { PokemonDetail } from './pokemon-detail';
+import { PokemonDetail, resetOggSupportCacheForTesting } from './pokemon-detail';
 import type { PokemonDetailResponse } from './pokemon-detail.model';
 
 const DETAIL_URL = '/api/pokemon/1';
@@ -85,6 +86,7 @@ const BULBASAUR: PokemonDetailResponse = {
   generation: 'generation-i',
   isLegendary: false,
   isMythical: false,
+  cryUrl: 'https://cries.test/latest/1.ogg',
 };
 
 /** 伝説/幻バッジ検証用。両フラグを立てて両バッジが同時に出ることを確認する。 */
@@ -101,11 +103,38 @@ const MEW: PokemonDetailResponse = {
   isMythical: true,
 };
 
+/**
+ * `audio/ogg` の再生可否（`canPlayType`）と再生呼び出し（`play`）を差し替えられる Audio スタブ。
+ * 生成された URL を `playedUrls` に記録し、再生対象が PokeAPI 由来の URL であることを検証する。
+ */
+class FakeAudio {
+  static canPlay = true;
+  static playedUrls: string[] = [];
+
+  constructor(public readonly src?: string) {}
+
+  canPlayType(type: string): string {
+    return type === 'audio/ogg' && FakeAudio.canPlay ? 'probably' : '';
+  }
+
+  play(): Promise<void> {
+    if (this.src) {
+      FakeAudio.playedUrls.push(this.src);
+    }
+    return Promise.resolve();
+  }
+}
+
 describe('PokemonDetail', () => {
   let httpMock: HttpTestingController;
+  const originalAudio = globalThis.Audio;
 
   beforeEach(async () => {
     localStorage.clear();
+    FakeAudio.canPlay = true;
+    FakeAudio.playedUrls = [];
+    globalThis.Audio = FakeAudio as unknown as typeof Audio;
+    resetOggSupportCacheForTesting();
     await TestBed.configureTestingModule({
       imports: [PokemonDetail],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
@@ -116,6 +145,8 @@ describe('PokemonDetail', () => {
 
   afterEach(() => {
     httpMock.verify();
+    globalThis.Audio = originalAudio;
+    resetOggSupportCacheForTesting();
   });
 
   const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -414,5 +445,77 @@ describe('PokemonDetail', () => {
 
     expect(el.querySelector('.detail__status--error')).toBeFalsy();
     expect(el.querySelector('.detail__name')?.textContent).toContain('フシギダネ');
+  });
+
+  it('localizes the play-cry button label and aria-label when the locale changes', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = (): HTMLButtonElement => el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button().textContent).toContain('なきごえ');
+    expect(button().getAttribute('aria-label')).toBe('フシギダネの なきごえを さいせい');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    expect(button().textContent).toContain('Cry');
+    expect(button().getAttribute('aria-label')).toBe('Play Bulbasaur’s cry');
+  });
+
+  it('plays the cry URL when the enabled button is clicked', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button.disabled).toBe(false);
+    button.click();
+
+    expect(FakeAudio.playedUrls).toEqual(['https://cries.test/latest/1.ogg']);
+  });
+
+  it('disables the button and does not play when cryUrl is null', async () => {
+    const fixture = createFixture('1');
+    await flushDetailWith(fixture, { ...BULBASAUR, cryUrl: null });
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
+    button.click();
+
+    expect(FakeAudio.playedUrls).toEqual([]);
+  });
+
+  it('disables the button when the browser cannot play audio/ogg', async () => {
+    // ogg 非対応ブラウザを模す。判定はモジュールレベルでキャッシュされるため、
+    // フェイク Audio を不可に切り替えてからキャッシュをリセットして再判定させる。
+    FakeAudio.canPlay = false;
+    resetOggSupportCacheForTesting();
+
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
+    button.click();
+
+    expect(FakeAudio.playedUrls).toEqual([]);
+  });
+
+  it('probes audio/ogg support only once across recomputes', async () => {
+    resetOggSupportCacheForTesting();
+    const canPlaySpy = vi.spyOn(FakeAudio.prototype, 'canPlayType');
+
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    // 再計算を複数回起こしてもプローブ用 Audio の canPlayType は 1 度しか呼ばれない。
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+    TestBed.inject(LocaleService).setLocale('ja');
+    await render(fixture);
+
+    expect(canPlaySpy).toHaveBeenCalledTimes(1);
   });
 });

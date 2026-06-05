@@ -92,6 +92,7 @@ export const CHARIZARD_DETAIL = {
   generation: 'generation-i',
   isLegendary: false,
   isMythical: false,
+  cryUrl: 'https://cries.test/latest/6.ogg',
 } as const;
 
 /**
@@ -133,6 +134,7 @@ export const MEW_DETAIL = {
   generation: 'generation-i',
   isLegendary: true,
   isMythical: true,
+  cryUrl: null,
 } as const;
 
 /** 名前検索（`?name=...`）のスタブ結果。リザードンと近縁の数体だけを返す。 */
