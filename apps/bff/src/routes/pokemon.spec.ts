@@ -200,6 +200,11 @@ function makeDetailFetchImpl() {
           { name: 'でんき', language: { name: 'ja-Hrkt', url: '' } },
           { name: 'electric', language: { name: 'en', url: '' } },
         ],
+        damage_relations: {
+          double_damage_from: [{ name: 'ground', url: '' }],
+          half_damage_from: [{ name: 'flying', url: '' }],
+          no_damage_from: [],
+        },
         pokemon: [],
       });
     }
@@ -247,6 +252,7 @@ function makeDetailFetchImpl() {
           front_shiny: null,
           other: { 'official-artwork': { front_default: 'https://img.test/art/25.png' } },
         },
+        cries: { latest: 'https://cry.test/25.ogg', legacy: null },
         species: { name: 'pikachu', url: `${UPSTREAM}/pokemon-species/25/` },
       });
     }
@@ -273,6 +279,7 @@ describe('GET /pokemon/:idOrName', () => {
     ]);
     expect(body.evolutionChain.id).toBe(25);
     expect(body.evolutionChain.evolvesTo).toEqual([]);
+    expect(body.cryUrl).toBe('https://cry.test/25.ogg');
   });
 
   it('resolves detail by numeric id as well', async () => {

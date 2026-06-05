@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { fetchPokemonDetail } from './detail.js';
+import { computeTypeMatchups, fetchPokemonDetail } from './detail.js';
+import {
+  buildLocalizedFlavorText,
+  buildLocalizedGenus,
+  formatFlavorText,
+  selectCryUrl,
+} from './localization.js';
+import type {
+  PokeApiFlavorTextEntry,
+  PokeApiGenus,
+  PokeApiName,
+  PokeApiNamedResource,
+  PokeApiPokemon,
+  PokeApiType,
+} from './types.js';
 
 const UPSTREAM = 'https://upstream.test/api/v2';
 
@@ -22,6 +36,16 @@ interface PokemonFixture {
   readonly stats: readonly { readonly name: string; readonly base: number }[];
   readonly artwork?: string | null;
   readonly frontDefault?: string | null;
+  readonly cries?: { readonly latest?: string | null; readonly legacy?: string | null };
+  readonly flavorTextEntries?: readonly {
+    readonly flavorText: string;
+    readonly language: string;
+    readonly version: string;
+  }[];
+  readonly genera?: readonly { readonly genus: string; readonly language: string }[];
+  readonly generation?: string;
+  readonly isLegendary?: boolean;
+  readonly isMythical?: boolean;
 }
 
 const BULBASAUR: PokemonFixture = {
@@ -41,6 +65,36 @@ const BULBASAUR: PokemonFixture = {
   ],
   artwork: 'https://img.test/artwork/1.png',
   frontDefault: 'https://img.test/sprite/1.png',
+  cries: {
+    latest: 'https://cry.test/latest/1.ogg',
+    legacy: 'https://cry.test/legacy/1.ogg',
+  },
+  flavorTextEntries: [
+    // 同一言語の複数バージョン。最新側（最後の出現）が代表として選ばれることを確認するため、
+    // 古いバージョンを先に、新しいバージョンを後に置く。
+    {
+      flavorText: 'A strange\nseed was\fplanted.',
+      language: 'en',
+      version: 'red',
+    },
+    {
+      flavorText: 'There is a\nplant seed on\fits back.',
+      language: 'en',
+      version: 'shield',
+    },
+    {
+      flavorText: 'うまれたときから\nせなかに\f しょくぶつの たねが あって、',
+      language: 'ja-Hrkt',
+      version: 'shield',
+    },
+  ],
+  genera: [
+    { genus: 'たねポケモン', language: 'ja-Hrkt' },
+    { genus: 'Seed Pokémon', language: 'en' },
+  ],
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
 };
 
 const IVYSAUR: PokemonFixture = {
@@ -69,9 +123,24 @@ const VENUSAUR: PokemonFixture = {
 
 const FIXTURES = [BULBASAUR, IVYSAUR, VENUSAUR] as const;
 
-const TYPE_NAMES: Record<string, { ja: string; en: string }> = {
-  grass: { ja: 'くさ', en: 'grass' },
-  poison: { ja: 'どく', en: 'poison' },
+interface DamageRelationsFixture {
+  readonly double_damage_from: readonly { readonly name: string; readonly url: string }[];
+  readonly half_damage_from: readonly { readonly name: string; readonly url: string }[];
+  readonly no_damage_from: readonly { readonly name: string; readonly url: string }[];
+}
+
+const EMPTY_DAMAGE_RELATIONS: DamageRelationsFixture = {
+  double_damage_from: [],
+  half_damage_from: [],
+  no_damage_from: [],
+};
+
+const TYPE_NAMES: Record<
+  string,
+  { ja: string; en: string; damageRelations: DamageRelationsFixture }
+> = {
+  grass: { ja: 'くさ', en: 'grass', damageRelations: EMPTY_DAMAGE_RELATIONS },
+  poison: { ja: 'どく', en: 'poison', damageRelations: EMPTY_DAMAGE_RELATIONS },
 };
 
 const ABILITY_NAMES: Record<string, { ja: string; en: string }> = {
@@ -98,6 +167,7 @@ function pokemonBody(f: PokemonFixture): unknown {
       front_shiny: null,
       other: { 'official-artwork': { front_default: f.artwork ?? null } },
     },
+    cries: f.cries,
     species: { name: f.name, url: `${UPSTREAM}/pokemon-species/${f.id}/` },
   };
 }
@@ -110,11 +180,19 @@ function speciesBody(f: PokemonFixture): unknown {
       { name: f.jaName, language: { name: 'ja-Hrkt', url: '' } },
       { name: f.enName, language: { name: 'en', url: '' } },
     ],
-    flavor_text_entries: [],
-    generation: { name: 'generation-i', url: '' },
+    genera: (f.genera ?? []).map((g) => ({
+      genus: g.genus,
+      language: { name: g.language, url: '' },
+    })),
+    flavor_text_entries: (f.flavorTextEntries ?? []).map((e) => ({
+      flavor_text: e.flavorText,
+      language: { name: e.language, url: '' },
+      version: { name: e.version, url: '' },
+    })),
+    generation: { name: f.generation ?? 'generation-i', url: '' },
     evolution_chain: { url: `${UPSTREAM}/evolution-chain/1/` },
-    is_legendary: false,
-    is_mythical: false,
+    is_legendary: f.isLegendary ?? false,
+    is_mythical: f.isMythical ?? false,
   };
 }
 
@@ -160,6 +238,7 @@ function makeFetchImpl() {
           { name: t.ja, language: { name: 'ja-Hrkt', url: '' } },
           { name: t.en, language: { name: 'en', url: '' } },
         ],
+        damage_relations: t.damageRelations,
         pokemon: [],
       });
     }
@@ -223,6 +302,30 @@ describe('fetchPokemonDetail', () => {
       { id: 'attack', base: 49 },
       { id: 'defense', base: 49 },
     ]);
+  });
+
+  it('includes localized dex info (flavor text, genus, generation, legendary/mythical) from species', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const detail = await fetchPokemonDetail(client, 'bulbasaur');
+
+    expect(detail.generation).toBe('generation-i');
+    expect(detail.isLegendary).toBe(false);
+    expect(detail.isMythical).toBe(false);
+    expect(detail.genus).toEqual({ ja: 'たねポケモン', en: 'Seed Pokémon' });
+    // 改行・改ページ制御文字が単一スペースへ畳まれ、同一言語の最新版が選ばれる。
+    expect(detail.flavorText).toEqual({
+      ja: 'うまれたときから せなかに しょくぶつの たねが あって、',
+      en: 'There is a plant seed on its back.',
+    });
+  });
+
+  it('selects the latest cry url (cries.latest preferred)', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const detail = await fetchPokemonDetail(client, 'bulbasaur');
+
+    expect(detail.cryUrl).toBe('https://cry.test/latest/1.ogg');
   });
 
   it('returns proper nouns (types and abilities) in both ja and en', async () => {
@@ -314,7 +417,17 @@ describe('fetchPokemonDetail', () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
       const path = new URL(String(input)).pathname;
       if (/\/type\//.test(path)) {
-        return jsonResponse({ id: 1, name: 'mystery', names: [], pokemon: [] });
+        return jsonResponse({
+          id: 1,
+          name: 'mystery',
+          names: [],
+          damage_relations: {
+            double_damage_from: [],
+            half_damage_from: [],
+            no_damage_from: [],
+          },
+          pokemon: [],
+        });
       }
       if (/\/ability\//.test(path)) {
         return jsonResponse({ id: 1, name: 'mystery', names: [] });
@@ -368,7 +481,275 @@ describe('fetchPokemonDetail', () => {
       },
     ]);
     expect(detail.imageUrl).toBeNull();
+    // cries が無い上流でも壊れず null になる。
+    expect(detail.cryUrl).toBeNull();
     expect(detail.evolutionChain.id).toBe(99);
     expect(detail.evolutionChain.evolvesTo).toEqual([]);
+  });
+});
+
+function ref(name: string): PokeApiNamedResource {
+  return { name, url: `${UPSTREAM}/type/${name}/` };
+}
+
+function typeNamesOf(...names: readonly string[]): PokeApiName[] {
+  return names.length === 0
+    ? []
+    : [
+        { name: `${names[0]!}-ja`, language: { name: 'ja-Hrkt', url: '' } },
+        { name: `${names[0]!}-en`, language: { name: 'en', url: '' } },
+      ];
+}
+
+/** localized 名は `${id}-ja` / `${id}-en` を持つ `/type` レスポンスを作る。names を空にすると識別子フォールバックになる。 */
+function makeType(
+  id: string,
+  damage: {
+    readonly double?: readonly string[];
+    readonly half?: readonly string[];
+    readonly no?: readonly string[];
+  },
+  options: { readonly withNames?: boolean } = {},
+): PokeApiType {
+  const withNames = options.withNames ?? true;
+  return {
+    id: 1,
+    name: id,
+    names: withNames ? typeNamesOf(id) : [],
+    damage_relations: {
+      double_damage_from: (damage.double ?? []).map(ref),
+      half_damage_from: (damage.half ?? []).map(ref),
+      no_damage_from: (damage.no ?? []).map(ref),
+    },
+    pokemon: [],
+  };
+}
+
+function typeMap(...types: readonly PokeApiType[]): Map<string, PokeApiType> {
+  return new Map(types.map((t) => [t.name, t]));
+}
+
+describe('computeTypeMatchups', () => {
+  it('classifies x2 / x0.5 / x0 for a single-type defender', () => {
+    const ground = makeType('ground', {
+      double: ['water', 'grass', 'ice'],
+      half: ['poison', 'rock'],
+      no: ['electric'],
+    });
+    const attackers = typeMap(
+      ground,
+      makeType('water', {}),
+      makeType('grass', {}),
+      makeType('ice', {}),
+      makeType('poison', {}),
+      makeType('rock', {}),
+      makeType('electric', {}),
+    );
+
+    const matchups = computeTypeMatchups(['ground'], attackers);
+
+    expect(matchups.weaknesses).toEqual([
+      {
+        multiplier: 2,
+        types: [
+          { id: 'water', name: { ja: 'water-ja', en: 'water-en' } },
+          { id: 'grass', name: { ja: 'grass-ja', en: 'grass-en' } },
+          { id: 'ice', name: { ja: 'ice-ja', en: 'ice-en' } },
+        ],
+      },
+    ]);
+    expect(matchups.resistances).toEqual([
+      {
+        multiplier: 0.5,
+        types: [
+          { id: 'poison', name: { ja: 'poison-ja', en: 'poison-en' } },
+          { id: 'rock', name: { ja: 'rock-ja', en: 'rock-en' } },
+        ],
+      },
+    ]);
+    expect(matchups.immunities).toEqual([
+      {
+        multiplier: 0,
+        types: [{ id: 'electric', name: { ja: 'electric-ja', en: 'electric-en' } }],
+      },
+    ]);
+  });
+
+  it('composes x4 and x0.25 for a dual-type defender', () => {
+    // 両タイプが fire に 2 倍 → ×4、両タイプが water に 0.5 倍 → ×0.25。
+    const a = makeType('a', { double: ['fire'], half: ['water'] });
+    const b = makeType('b', { double: ['fire'], half: ['water'] });
+    const attackers = typeMap(a, b, makeType('fire', {}), makeType('water', {}));
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 4, types: [{ id: 'fire', name: { ja: 'fire-ja', en: 'fire-en' } }] },
+    ]);
+    expect(matchups.resistances).toEqual([
+      { multiplier: 0.25, types: [{ id: 'water', name: { ja: 'water-ja', en: 'water-en' } }] },
+    ]);
+    expect(matchups.immunities).toEqual([]);
+  });
+
+  it('cancels x2 and x0.5 to neutral (x1) and excludes it', () => {
+    const a = makeType('a', { double: ['fire'] });
+    const b = makeType('b', { half: ['fire'] });
+    const attackers = typeMap(a, b, makeType('fire', {}));
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([]);
+  });
+
+  it('preserves immunity (x0) even when the other type multiplies up', () => {
+    const a = makeType('a', { no: ['ghost'] });
+    const b = makeType('b', { double: ['ghost'] });
+    const attackers = typeMap(a, b, makeType('ghost', {}));
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([
+      { multiplier: 0, types: [{ id: 'ghost', name: { ja: 'ghost-ja', en: 'ghost-en' } }] },
+    ]);
+  });
+
+  it('orders weakness groups by multiplier descending and falls back names to the identifier', () => {
+    // x4: 両方が super、x2: 片方だけが super。fire の名前は欠落させて識別子フォールバックを確認する。
+    const a = makeType('a', { double: ['fire', 'ice'] });
+    const b = makeType('b', { double: ['fire'] });
+    const attackers = typeMap(
+      a,
+      b,
+      makeType('fire', {}, { withNames: false }),
+      makeType('ice', {}),
+    );
+
+    const matchups = computeTypeMatchups(['a', 'b'], attackers);
+
+    expect(matchups.weaknesses).toEqual([
+      { multiplier: 4, types: [{ id: 'fire', name: { ja: 'fire', en: 'fire' } }] },
+      { multiplier: 2, types: [{ id: 'ice', name: { ja: 'ice-ja', en: 'ice-en' } }] },
+    ]);
+    expect(matchups.resistances).toEqual([]);
+    expect(matchups.immunities).toEqual([]);
+  });
+});
+
+function flavor(text: string, language: string, version = 'v'): PokeApiFlavorTextEntry {
+  return {
+    flavor_text: text,
+    language: { name: language, url: '' },
+    version: { name: version, url: '' },
+  };
+}
+
+function genusOf(genus: string, language: string): PokeApiGenus {
+  return { genus, language: { name: language, url: '' } };
+}
+
+describe('formatFlavorText', () => {
+  it('collapses newlines, form feeds and whitespace runs to single spaces and trims', () => {
+    expect(formatFlavorText('A strange\nseed was\fplanted')).toBe('A strange seed was planted');
+    expect(formatFlavorText('  leading\n\n and\f\f trailing  ')).toBe('leading and trailing');
+    expect(formatFlavorText('うまれた\nときから\fせなか')).toBe('うまれた ときから せなか');
+  });
+});
+
+describe('buildLocalizedFlavorText', () => {
+  it('selects ja-Hrkt/ja for ja and en for en, formatting the chosen text', () => {
+    const entries = [
+      flavor('Old\nEnglish', 'en', 'red'),
+      flavor('New\fEnglish', 'en', 'shield'),
+      flavor('にほんご\nのせつめい', 'ja-Hrkt', 'shield'),
+    ];
+
+    expect(buildLocalizedFlavorText(entries)).toEqual({
+      ja: 'にほんご のせつめい',
+      en: 'New English',
+    });
+  });
+
+  it('falls back ja to the en entry when no ja text exists', () => {
+    const entries = [flavor('Only\nEnglish', 'en')];
+
+    expect(buildLocalizedFlavorText(entries)).toEqual({
+      ja: 'Only English',
+      en: 'Only English',
+    });
+  });
+
+  it('uses ja-Hrkt over ja when both are present', () => {
+    const entries = [flavor('hrkt', 'ja-Hrkt'), flavor('kanji', 'ja'), flavor('english', 'en')];
+
+    expect(buildLocalizedFlavorText(entries).ja).toBe('hrkt');
+  });
+
+  it('tolerates undefined or empty entries and uses the fallback', () => {
+    expect(buildLocalizedFlavorText(undefined)).toEqual({ ja: '', en: '' });
+    expect(buildLocalizedFlavorText([], 'n/a')).toEqual({ ja: 'n/a', en: 'n/a' });
+  });
+});
+
+describe('buildLocalizedGenus', () => {
+  it('selects ja-Hrkt/ja for ja and en for en', () => {
+    const genera = [genusOf('ねずみポケモン', 'ja-Hrkt'), genusOf('Mouse Pokémon', 'en')];
+
+    expect(buildLocalizedGenus(genera)).toEqual({
+      ja: 'ねずみポケモン',
+      en: 'Mouse Pokémon',
+    });
+  });
+
+  it('falls back ja to en when no ja genus exists', () => {
+    const genera = [genusOf('Mouse Pokémon', 'en')];
+
+    expect(buildLocalizedGenus(genera)).toEqual({
+      ja: 'Mouse Pokémon',
+      en: 'Mouse Pokémon',
+    });
+  });
+
+  it('tolerates undefined or empty genera and uses the fallback', () => {
+    expect(buildLocalizedGenus(undefined)).toEqual({ ja: '', en: '' });
+    expect(buildLocalizedGenus([], 'unknown')).toEqual({ ja: 'unknown', en: 'unknown' });
+  });
+});
+
+describe('selectCryUrl', () => {
+  function pokemonWith(cries: PokeApiPokemon['cries']): PokeApiPokemon {
+    return {
+      id: 1,
+      name: 'x',
+      height: 1,
+      weight: 1,
+      base_experience: 1,
+      types: [],
+      stats: [],
+      abilities: [],
+      sprites: { front_default: null, front_shiny: null },
+      species: { name: 'x', url: '' },
+      cries,
+    };
+  }
+
+  it('prefers cries.latest when present', () => {
+    expect(selectCryUrl(pokemonWith({ latest: 'latest.ogg', legacy: 'legacy.ogg' }))).toBe(
+      'latest.ogg',
+    );
+  });
+
+  it('falls back to cries.legacy when latest is missing', () => {
+    expect(selectCryUrl(pokemonWith({ latest: null, legacy: 'legacy.ogg' }))).toBe('legacy.ogg');
+    expect(selectCryUrl(pokemonWith({ legacy: 'legacy.ogg' }))).toBe('legacy.ogg');
+  });
+
+  it('returns null when neither source nor the cries object exists', () => {
+    expect(selectCryUrl(pokemonWith({ latest: null, legacy: null }))).toBeNull();
+    expect(selectCryUrl(pokemonWith(undefined))).toBeNull();
   });
 });

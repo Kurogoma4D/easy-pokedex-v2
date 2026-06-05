@@ -15,6 +15,10 @@ interface LocalizedName {
 const sprite = (id: number): string =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 
+/** 鳴き声音源 URL。フロントは PokeAPI 由来 URL を直接 Audio で参照する（BFF はプロキシしない）。 */
+const cry = (id: number): string =>
+  `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${id}.ogg`;
+
 const type = (id: string, ja: string, en: string): { id: string; name: LocalizedName } => ({
   id,
   name: { ja, en },
@@ -64,6 +68,88 @@ export const CHARIZARD_DETAIL = {
       },
     ],
   },
+  typeMatchups: {
+    weaknesses: [
+      { multiplier: 4, types: [type('rock', 'いわ', 'Rock')] },
+      {
+        multiplier: 2,
+        types: [type('water', 'みず', 'Water'), type('electric', 'でんき', 'Electric')],
+      },
+    ],
+    resistances: [
+      {
+        multiplier: 0.25,
+        types: [type('grass', 'くさ', 'Grass'), type('bug', 'むし', 'Bug')],
+      },
+      {
+        multiplier: 0.5,
+        types: [type('fighting', 'かくとう', 'Fighting'), type('fire', 'ほのお', 'Fire')],
+      },
+    ],
+    immunities: [{ multiplier: 0, types: [type('ground', 'じめん', 'Ground')] }],
+  },
+  flavorText: {
+    ja: 'ひこうしながら きえん を はく。からだじゅうが もえているように みえる。',
+    en: 'It breathes fire that is hot enough to melt boulders.',
+  },
+  genus: { ja: 'かえんポケモン', en: 'Flame Pokémon' },
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
+  cryUrl: cry(6),
+} as const;
+
+/**
+ * ミュウ（伝説かつ幻）の詳細スタブ。`isLegendary` と `isMythical` を両方立て、
+ * 伝説/幻バッジが両方描画されることを E2E で検証するために用いる。
+ */
+export const MEW_DETAIL = {
+  id: 151,
+  name: { ja: 'ミュウ', en: 'Mew' },
+  imageUrl: sprite(151),
+  height: 4,
+  weight: 40,
+  types: [type('psychic', 'エスパー', 'Psychic')],
+  stats: [
+    { id: 'hp', base: 100 },
+    { id: 'attack', base: 100 },
+    { id: 'defense', base: 100 },
+    { id: 'special-attack', base: 100 },
+    { id: 'special-defense', base: 100 },
+    { id: 'speed', base: 100 },
+  ],
+  abilities: [{ id: 'synchronize', name: { ja: 'シンクロ', en: 'Synchronize' }, isHidden: false }],
+  evolutionChain: {
+    id: 151,
+    name: { ja: 'ミュウ', en: 'Mew' },
+    imageUrl: sprite(151),
+    evolvesTo: [],
+  },
+  typeMatchups: {
+    weaknesses: [],
+    resistances: [],
+    immunities: [],
+  },
+  flavorText: {
+    ja: 'いでんしには すべての ポケモンの ようそが ふくまれていると いわれている。',
+    en: 'Its DNA is said to contain the genetic codes of all Pokémon.',
+  },
+  genus: { ja: 'しんしゅポケモン', en: 'New Species Pokémon' },
+  generation: 'generation-i',
+  isLegendary: true,
+  isMythical: true,
+  cryUrl: cry(151),
+} as const;
+
+/**
+ * 鳴き声 URL が無いポケモンの詳細スタブ。再生ボタンが無効化され、音源欠落時のフォールバックを
+ * E2E で検証するために用いる（リザードンの形を流用し cryUrl だけ null にする）。
+ */
+export const NO_CRY_DETAIL = {
+  ...CHARIZARD_DETAIL,
+  id: 7,
+  name: { ja: 'ゼニガメ', en: 'Squirtle' },
+  cryUrl: null,
 } as const;
 
 /** 名前検索（`?name=...`）のスタブ結果。リザードンと近縁の数体だけを返す。 */
@@ -164,8 +250,8 @@ const EMPTY_SEARCH_RESULTS = {
 
 /**
  * BFF（`/api/pokemon/**`）への通信をブラウザ層でスタブする。スプライト画像は外部 CDN を叩かないよう
- * 透明 1px の PNG で打ち返し、E2E をネットワーク非依存にする。検索は `name` パラメータを BFF と
- * 同じ正規化に通し、候補名に部分一致したときだけカタカナ名の結果を返す。
+ * 透明 1px の PNG で打ち返し、鳴き声音源も最小の OGG で打ち返して E2E をネットワーク非依存にする。
+ * 検索は `name` パラメータを BFF と同じ正規化に通し、候補名に部分一致したときだけカタカナ名の結果を返す。
  */
 export async function stubBff(page: Page): Promise<void> {
   await page.route('**/api/pokemon/list**', (route) => fulfillJson(route, LIST_RESULTS));
@@ -174,15 +260,26 @@ export async function stubBff(page: Page): Promise<void> {
     return fulfillJson(route, matchesSearchCandidate(name) ? SEARCH_RESULTS : EMPTY_SEARCH_RESULTS);
   });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
+  await page.route('**/api/pokemon/7', (route) => fulfillJson(route, NO_CRY_DETAIL));
+  await page.route('**/api/pokemon/151', (route) => fulfillJson(route, MEW_DETAIL));
 
-  await page.route('https://raw.githubusercontent.com/**', (route) =>
-    route.fulfill({
+  await page.route('https://raw.githubusercontent.com/**', (route) => {
+    const url = route.request().url();
+    // 鳴き声音源（.ogg）は最小の OGG ヘッダで、画像は透明 1px PNG で打ち返す。
+    if (url.endsWith('.ogg')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'audio/ogg',
+        body: Buffer.from('OggS', 'ascii'),
+      });
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'image/png',
       body: Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQAY3Y2wAAAAAElFTkSuQmCC',
         'base64',
       ),
-    }),
-  );
+    });
+  });
 }
