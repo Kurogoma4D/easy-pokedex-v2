@@ -463,6 +463,50 @@ describe('GET /pokemon/search', () => {
     expect(body.results[0]?.types).toEqual(['fire']);
   });
 
+  it('hits a name-only search on a cold cache without a prior filter (ja and en)', async () => {
+    // issue #30 の再現条件: 起動直後（コールドキャッシュ・直前のフィルタ操作なし）に名前検索する。
+    // 全国図鑑（`/pokemon` 全件）を候補に、未読み込みのポケモンが ja/en いずれでもヒットすること、
+    // かつフィルタを一度通したかどうかに依存しないこと（同条件は同結果）を保証する。
+    const jaFetch = makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>;
+    const jaApp = makeApp(jaFetch);
+    const jaRes = await jaApp.request('/pokemon/search?name=チコリータ');
+    expect(jaRes.status).toBe(200);
+    const jaBody = (await jaRes.json()) as PokemonSearchResponse;
+    expect(jaBody.results.map((r) => r.id)).toEqual([152]);
+    expect(jaBody.results[0]?.name).toEqual({ ja: 'チコリータ', en: 'Chikorita' });
+
+    // マッチ段は species だけで判定し、`/pokemon` 個別取得はマッチした 1 件にのみ発生する
+    // （全候補ぶんの `/pokemon` を一斉に引かない＝コールドキャッシュでもタイムアウトしない）。
+    const fetchedPokemonIds = jaFetch.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    expect(fetchedPokemonIds).toEqual([152]);
+
+    // 別のコールドクライアントで英語名検索しても、同じ図鑑番号がヒットする（状態非依存）。
+    const enApp = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+    const enRes = await enApp.request('/pokemon/search?name=chikorita');
+    const enBody = (await enRes.json()) as PokemonSearchResponse;
+    expect(enBody.results.map((r) => r.id)).toEqual([152]);
+  });
+
+  it('returns the same name-only result regardless of a preceding filter pass', async () => {
+    // 同一クライアントで「先にタイプフィルタを通してから名前検索」しても、いきなり名前検索した
+    // ときと結果が一致する（直前のフィルタ操作の有無・順序に依存しない）。
+    const warmFetch = makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>;
+    const warmApp = makeApp(warmFetch);
+    await warmApp.request('/pokemon/search?type=grass');
+    const warmRes = await warmApp.request('/pokemon/search?name=chikorita');
+    const warmBody = (await warmRes.json()) as PokemonSearchResponse;
+
+    const coldApp = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+    const coldRes = await coldApp.request('/pokemon/search?name=chikorita');
+    const coldBody = (await coldRes.json()) as PokemonSearchResponse;
+
+    expect(coldBody.results.map((r) => r.id)).toEqual(warmBody.results.map((r) => r.id));
+    expect(coldBody.count).toBe(warmBody.count);
+  });
+
   it('applies multiple type filters with AND semantics', async () => {
     const app = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
 

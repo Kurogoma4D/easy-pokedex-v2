@@ -394,6 +394,47 @@ describe('searchPokemon', () => {
     expect(fetchedAltForm).toBe(false);
   });
 
+  it('fetches species but not /pokemon for non-matching name-only candidates', async () => {
+    // 名前のみ検索のマッチ段は species（多言語名）だけで判定し、`/pokemon`（画像・タイプ）は
+    // 引かない。コールドキャッシュ時（起動直後）に候補全件ぶんの `/pokemon` を一斉に引いて
+    // タイムアウト／上流過負荷になる回帰を防ぐ。`/pokemon` 取得はマッチした 1 件にのみ発生する。
+    const fetchImpl = makeFetchImpl();
+    const client = makeClient(fetchImpl);
+
+    const result = await searchPokemon(client, { name: 'ヒトカゲ', limit: 20, offset: 0 });
+    expect(result.results.map((r) => r.id)).toEqual([4]);
+
+    const fetchedPokemonIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    // マッチした 1 件（id 4）のみ `/pokemon` を取得し、非マッチ候補（1/7/43/152）は引かない。
+    expect(fetchedPokemonIds).toEqual([4]);
+
+    const fetchedSpeciesIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon-species\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    // species は全候補ぶん引いて名前判定に用いる。
+    expect(new Set(fetchedSpeciesIds)).toEqual(new Set([1, 4, 7, 43, 152]));
+  });
+
+  it('matches an english slug from /pokemon list without fetching /pokemon to resolve names', async () => {
+    // 候補解決時に `/pokemon` 一覧の name(スラッグ) を控えるため、英語スラッグ一致のマッチは
+    // species だけで判定でき、非マッチ候補の `/pokemon` 取得は発生しない。
+    const fetchImpl = makeFetchImpl();
+    const client = makeClient(fetchImpl);
+
+    const result = await searchPokemon(client, { name: 'squirtle', limit: 20, offset: 0 });
+    expect(result.results.map((r) => r.id)).toEqual([7]);
+
+    const fetchedPokemonIds = fetchImpl.mock.calls
+      .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+    expect(fetchedPokemonIds).toEqual([7]);
+  });
+
   it('keeps default-form matches for a type and generation intersection', async () => {
     const client = makeClient(makeFetchImpl());
 
