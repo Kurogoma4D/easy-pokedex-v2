@@ -211,11 +211,12 @@ function matchesName(material: NameMatchMaterial, query: string): boolean {
  * ポケモンを名前（ja/en 部分一致）・タイプ（複数 AND）・世代で絞り込んで返す（FR-2 / FR-5）。
  *
  * 検索はクライアントへ一覧を渡さず BFF 側で完結させる（spec 10. Open Questions）。タイプ・世代は
- * 上流のメンバー集合を積集合して候補 id を安価に求める。名前フィルタは候補の ja/en 名で絞り込むが、
+ * 上流のメンバー集合を積集合して候補 id を安価に求める。名前フィルタは候補の ja/en 名で絞り込む。
  * 名前マッチに必要なのは `/pokemon-species`（多言語名）と候補スラッグ（英語識別子）だけで、画像・
- * タイプを持つ `/pokemon` は不要。そこでマッチ段では species のみを引き、`/pokemon` は最終的に返す
- * ページの分だけ取得する。これによりコールドキャッシュ時（起動直後）の上流ファンアウトが半減し、
- * 名前検索が状態に依存せず妥当な時間内に完了する。上流アクセスはすべて注入された PokeApiClient
+ * タイプを持つ `/pokemon` はマッチ判定には不要。そこでマッチ段では候補 1 体あたり species のみを引き、
+ * `/pokemon` は名前にマッチして最終的に返すページの分だけ後段で取得する。これによりコールドキャッシュ時
+ * （起動直後）の上流ファンアウトが候補 1 体あたり 2 本から 1 本へ半減し、名前検索が状態に依存せず
+ * 妥当な時間内に完了する。上流アクセスはすべて注入された PokeApiClient
  * （キャッシュ・単一フライト込み）経由で行い、個別取得はワーカープールで同時実行数を抑える。
  * タイプ・世代の指定が無く名前のみで検索する場合は候補が全件に広がるため、候補数に上限
  * （NAME_ONLY_CANDIDATE_CAP）を設けて上流負荷を抑える。
@@ -259,6 +260,9 @@ export async function searchPokemon(
   // あたり 2 本から 1 本へ半減させる。`/pokemon` は最終的に返すページの分だけ後段で取得する。
   const nameMaterials = await fetchNameMatchMaterials(client, candidates, options, concurrency);
   const matched = nameMaterials.filter((material) => matchesName(material, nameQuery));
+  // count はマッチ段（species 存在を確認済み）のヒット数を正とする。後段の fetchMaterials が
+  // `/pokemon/{id}` の上流 404 で 1 体を取りこぼすと results.length < count になり得るが、species が
+  // 引けて名前にマッチした個体は「該当件数」として数える意図（マッチ段の種存在を count の権威とする）。
   const total = matched.length;
   const page = matched.slice(params.offset, params.offset + params.limit);
   const materials = await fetchMaterials(
