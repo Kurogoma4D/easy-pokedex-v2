@@ -103,6 +103,30 @@ docker compose down      # コンテナを停止（データは残る）
 docker compose down -v   # ボリュームごと削除（データも消える）
 ```
 
+## 認証 API（BFF）
+
+メールアドレス + パスワードによるアカウント登録・ログインを BFF で提供します。
+認証成功時に HttpOnly のセッション Cookie（`sid`）を発行し、保護 API は
+セッションから解決した現在ユーザーでゲートします。パスワードは平文を保存せず、
+scrypt でハッシュ化して `users.password_hash` に格納します。
+
+| メソッド・パス | 説明 | 成功時 |
+| --- | --- | --- |
+| `POST /auth/register` | メール + パスワードで登録する。 | `201` とセッション Cookie |
+| `POST /auth/login` | 登録済みユーザーでログインする。 | `200` とセッション Cookie |
+| `POST /auth/logout` | セッションを破棄し Cookie を削除する。 | `204` |
+| `GET /auth/me` | 現在のログインユーザーを返す（要認証）。 | `200` |
+
+リクエスト本文は `{ "email": string, "password": string }` の JSON です。
+
+- メール形式不正・パスワード長違反は `400`。
+- メール重複登録は `409`。
+- ログインの資格情報不一致は `401`。
+- 未認証で保護 API にアクセスすると `401`。
+
+パスワードは最小 8 文字・最大 128 文字を要求します。セッション Cookie は `Secure`
+属性を本番（`NODE_ENV=production`）でのみ付与し、`HttpOnly` と `SameSite=Lax` は常に付与します。
+
 ## 仕様
 
 詳細な要件は [`spec.md`](./spec.md) を参照してください。
