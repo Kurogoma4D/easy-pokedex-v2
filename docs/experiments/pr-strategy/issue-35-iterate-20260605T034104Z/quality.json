@@ -1,0 +1,34 @@
+{
+  "issue": 35,
+  "approach": "iterate",
+  "prs": [50],
+  "total_additions": 415,
+  "total_deletions": 6,
+  "scores": {
+    "correctness": 5,
+    "design": 5,
+    "tests": 5,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 4
+  },
+  "weighted_total": 98.4,
+  "findings": [
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.ts (detail__genus)",
+      "note": "genus が flavor text パネル(@if flavorText())と非対称に空ガード無しで描画される。BFF の genus フォールバックは '' のため、上流に genus が無いと空の <p> が出る。実運用では genera は常に存在するため cosmetic。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/pokeapi/localization.ts (selectFlavorText)",
+      "note": "flavor text を『該当言語の最後のエントリ=最新版』として選ぶが、PokeAPI は flavor_text_entries の時系列順を保証しない。コメントで前提を明記済みで issue 的には任意の1件で可のため許容範囲だが best-effort。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/web (pokemon-detail のスタイル) / angular.json",
+      "note": "詳細コンポーネントの CSS が anyComponentStyle 警告予算 4kB を ~862 bytes 超過(error 予算 8kB のためビルドは成功)。非ブロッキング警告を据え置き。"
+    }
+  ],
+  "verdict": "species 由来の図鑑情報4点(説明文/分類/世代/伝説・幻)を localization.ts の整形・言語選択ヘルパで DTO 化し、フロントで条件付きバッジ・パネル・言語切替連動まで実装した、設計・テスト・i18n とも高水準の完成度。E2E harness 上に dex-info の e2e も追加済みで機能 AC を完全充足。難点は genus の空ガード非対称・flavor 最新版選択の best-effort・CSS 警告据え置きといった軽微な cleanliness のみ。"
+}
