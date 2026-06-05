@@ -86,21 +86,64 @@ export const CHARIZARD_DETAIL = {
   },
 } as const;
 
+/** 名前検索（`?name=...`）でヒットさせる候補。リザードン 1 体のみ。 */
+const SEARCH_CANDIDATE = {
+  id: 6,
+  imageUrl: sprite(6),
+  name: { ja: 'リザードン', en: 'Charizard' },
+  types: ['fire', 'flying'],
+} as const;
+
 /** 名前検索（`?name=...`）のスタブ結果。リザードンと近縁の数体だけを返す。 */
 export const SEARCH_RESULTS = {
   count: 1,
   offset: 0,
   limit: 24,
   nextOffset: null,
-  results: [
-    {
-      id: 6,
-      imageUrl: sprite(6),
-      name: { ja: 'リザードン', en: 'Charizard' },
-      types: ['fire', 'flying'],
-    },
-  ],
+  results: [SEARCH_CANDIDATE],
 } as const;
+
+/** 名前検索でマッチが無かった場合のスタブ結果。 */
+const SEARCH_EMPTY = {
+  count: 0,
+  offset: 0,
+  limit: 24,
+  nextOffset: null,
+  results: [],
+} as const;
+
+/**
+ * BFF の `normalize`（apps/bff/src/pokeapi/search.ts）と同じかな正規化をブラウザ層で再現する。
+ * NFKC で全角半角差を畳み、ひらがな（U+3041〜U+3096）を一律 +0x60 でカタカナへ寄せ、
+ * 前後空白・大小文字を落とす。これにより、ひらがなクエリ（りざ）がカタカナ名（リザードン）へ
+ * 部分一致することをスタブ単独で再現でき、E2E がかな正規化の動線を実際に検証する。
+ */
+function normalizeQuery(value: string): string {
+  const folded = value.trim().toLowerCase().normalize('NFKC');
+  let result = '';
+  for (const ch of folded) {
+    const code = ch.codePointAt(0)!;
+    if (code >= 0x3041 && code <= 0x3096) {
+      result += String.fromCodePoint(code + 0x60);
+    } else {
+      result += ch;
+    }
+  }
+  return result;
+}
+
+/**
+ * 検索クエリ（`?name=...`）に応じてスタブ結果を組み立てる。クエリと候補名の双方を
+ * 同一の正規化で畳み、正規化後クエリが候補名（ja/en）の部分文字列のときだけ候補を返す。
+ */
+function searchResultsForQuery(name: string | null): unknown {
+  const query = name === null ? '' : normalizeQuery(name);
+  if (query.length === 0) {
+    return SEARCH_EMPTY;
+  }
+  const haystacks = [SEARCH_CANDIDATE.name.ja, SEARCH_CANDIDATE.name.en].map(normalizeQuery);
+  return haystacks.some((h) => h.includes(query)) ? SEARCH_RESULTS : SEARCH_EMPTY;
+}
 
 /** ブラウズ（`/pokemon/list`）のスタブ結果。検索前の初期一覧表示に使う。 */
 export const LIST_RESULTS = {
@@ -143,7 +186,10 @@ const fulfillJson = (route: Route, body: unknown): Promise<void> =>
  */
 export async function stubBff(page: Page): Promise<void> {
   await page.route('**/api/pokemon/list**', (route) => fulfillJson(route, LIST_RESULTS));
-  await page.route('**/api/pokemon/search**', (route) => fulfillJson(route, SEARCH_RESULTS));
+  await page.route('**/api/pokemon/search**', (route) => {
+    const name = new URL(route.request().url()).searchParams.get('name');
+    return fulfillJson(route, searchResultsForQuery(name));
+  });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
 
   await page.route('https://raw.githubusercontent.com/**', (route) =>

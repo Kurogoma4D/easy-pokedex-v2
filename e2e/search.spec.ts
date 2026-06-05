@@ -37,4 +37,19 @@ test.describe('Pokemon name search', () => {
     await expect(card).toBeVisible();
     await expect(card.locator('.card__dex')).toHaveText('#006');
   });
+
+  test('non-matching query returns no results', async ({ page }) => {
+    await stubBff(page);
+    await page.goto('/list');
+
+    const grid = page.locator('.list__grid');
+    await expect(grid).toBeVisible();
+
+    // 候補名（リザードン）へ正規化しても一致しないクエリを入力する。
+    await page.getByRole('searchbox').fill('ぴかちゅう');
+
+    // 0 件のため一覧グリッドは空状態へ差し替わり、リザードンのカードは描画されない。
+    await expect(page.locator('.list__empty')).toBeVisible();
+    await expect(page.locator('.card', { hasText: 'リザードン' })).toHaveCount(0);
+  });
 });
