@@ -1,5 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  InjectionToken,
+  input,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
 import { LocalizedName } from '../../i18n/localized-name';
@@ -9,6 +18,18 @@ import { GENERATIONS } from '../list/pokemon-filters';
 import { PokemonApiService } from '../list/pokemon-api.service';
 import { TypeChip } from '../shared/type-chip';
 import type { EvolutionNode, PokemonTypeMatchupGroup } from './pokemon-detail.model';
+
+/** 鳴き声再生に使う HTMLAudioElement のファクトリ。テストで差し替えられるよう DI で注入する。 */
+export type CryAudioFactory = (src: string) => HTMLAudioElement;
+
+/**
+ * 鳴き声再生用の Audio ファクトリ。既定はブラウザの `Audio` コンストラクタを使う。
+ * 単体テストでは再生副作用を持たないスタブへ差し替える。
+ */
+export const CRY_AUDIO_FACTORY = new InjectionToken<CryAudioFactory>('CRY_AUDIO_FACTORY', {
+  providedIn: 'root',
+  factory: () => (src: string) => new Audio(src),
+});
 
 /** 種族値バーの上限。単一ステータスの取りうる上限に合わせて 0–100% を割り当てる。 */
 const STAT_MAX = 255;
@@ -103,6 +124,16 @@ function formatMultiplier(multiplier: number): string {
           @if (genus()) {
             <p class="detail__genus">{{ genus() }}</p>
           }
+          <button
+            class="detail__cry"
+            type="button"
+            [disabled]="!canPlayCry()"
+            [attr.aria-label]="cryLabel()"
+            [title]="cryLabel()"
+            (click)="playCry()"
+          >
+            <span class="detail__cry-glyph" aria-hidden="true">▶</span>
+          </button>
           @if (detail.isLegendary || detail.isMythical) {
             <div class="detail__badges">
               @if (detail.isLegendary) {
@@ -364,6 +395,29 @@ function formatMultiplier(multiplier: number): string {
       background-color: var(--color-text);
       border-radius: var(--radius-pixel);
     }
+    .detail__cry {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      color: var(--color-text);
+      background-color: var(--color-screen);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-chip);
+      box-shadow: var(--shadow-dot-sm);
+      cursor: pointer;
+    }
+    .detail__cry:disabled {
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .detail__cry-glyph {
+      font-size: var(--font-size-display-sm);
+      line-height: 1;
+    }
     .detail__types {
       display: flex;
       gap: var(--space-2);
@@ -529,6 +583,10 @@ function formatMultiplier(multiplier: number): string {
 export class PokemonDetail {
   private readonly localeService = inject(LocaleService);
   private readonly api = inject(PokemonApiService);
+  private readonly audioFactory = inject(CRY_AUDIO_FACTORY);
+
+  /** 再生中の Audio。新規再生時に停止・破棄し、コンポーネント破棄時にも後始末する。 */
+  private cryAudio: HTMLAudioElement | null = null;
 
   protected readonly messages = this.localeService.messages;
   protected readonly statMax = STAT_MAX;
@@ -574,6 +632,26 @@ export class PokemonDetail {
   protected readonly genus = computed(() => {
     const detail = this.data();
     return detail ? this.localeService.localizeName(detail.genus) : '';
+  });
+
+  /**
+   * 鳴き声の音源 URL（PokeAPI 由来）。フロントは BFF を介さずこの URL を直接 Audio で再生する。
+   * 音源欠落（null）または再生失敗（`cryError`）の場合は再生ボタンを無効化する。
+   */
+  protected readonly cryUrl = computed(() => this.data()?.cryUrl ?? null);
+
+  /** 再生に失敗した URL を記録し、その音源では以降ボタンを無効化する。 */
+  private readonly cryError = signal<string | null>(null);
+
+  protected readonly canPlayCry = computed(() => {
+    const url = this.cryUrl();
+    return url !== null && this.cryError() !== url;
+  });
+
+  /** 再生ボタンのアクセシブルなラベル。音源の有無で文言を出し分け、言語切替に追従する。 */
+  protected readonly cryLabel = computed(() => {
+    const messages = this.messages();
+    return this.canPlayCry() ? messages['detail.cry.play'] : messages['detail.cry.unavailable'];
   });
 
   /**
@@ -644,8 +722,38 @@ export class PokemonDetail {
     ];
   });
 
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.stopCry());
+  }
+
   protected formatMultiplier(multiplier: number): string {
     return formatMultiplier(multiplier);
+  }
+
+  /**
+   * 鳴き声を再生する。直前の再生があれば止めてから新しい音源を再生し、再生に失敗した場合は
+   * その URL を `cryError` に記録してボタンを無効化する（穏当なフォールバック）。
+   * 音源は PokeAPI 由来 URL を直接参照する（BFF はプロキシしない）。
+   */
+  protected playCry(): void {
+    const url = this.cryUrl();
+    if (url === null || !this.canPlayCry()) {
+      return;
+    }
+    this.stopCry();
+    const audio = this.audioFactory(url);
+    this.cryAudio = audio;
+    audio.addEventListener('error', () => this.cryError.set(url), { once: true });
+    void Promise.resolve(audio.play()).catch(() => this.cryError.set(url));
+  }
+
+  /** 再生中の鳴き声を停止し、参照を解放する。 */
+  private stopCry(): void {
+    if (this.cryAudio === null) {
+      return;
+    }
+    this.cryAudio.pause();
+    this.cryAudio = null;
   }
 
   protected localize(name: LocalizedName): string {

@@ -3,8 +3,44 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { LocaleService } from '../../i18n/locale.service';
-import { PokemonDetail } from './pokemon-detail';
+import { CRY_AUDIO_FACTORY, PokemonDetail } from './pokemon-detail';
 import type { PokemonDetailResponse } from './pokemon-detail.model';
+
+/**
+ * 鳴き声再生検証用の Audio スタブ。実際の音声デバイスを触らず、`play()` の戻り値と
+ * `error` イベント発火を制御できるようにして、再生成功・失敗の両分岐を検証する。
+ */
+class FakeAudio {
+  static instances: FakeAudio[] = [];
+  static playBehavior: () => Promise<void> = () => Promise.resolve();
+
+  paused = false;
+  private readonly errorListeners: (() => void)[] = [];
+
+  constructor(readonly src: string) {
+    FakeAudio.instances.push(this);
+  }
+
+  play(): Promise<void> {
+    return FakeAudio.playBehavior();
+  }
+
+  pause(): void {
+    this.paused = true;
+  }
+
+  addEventListener(type: string, listener: () => void): void {
+    if (type === 'error') {
+      this.errorListeners.push(listener);
+    }
+  }
+
+  emitError(): void {
+    for (const listener of this.errorListeners) {
+      listener();
+    }
+  }
+}
 
 const DETAIL_URL = '/api/pokemon/1';
 
@@ -85,6 +121,7 @@ const BULBASAUR: PokemonDetailResponse = {
   generation: 'generation-i',
   isLegendary: false,
   isMythical: false,
+  cryUrl: 'https://cries.test/1.ogg',
 };
 
 /** 伝説/幻バッジ検証用。両フラグを立てて両バッジが同時に出ることを確認する。 */
@@ -106,9 +143,19 @@ describe('PokemonDetail', () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    FakeAudio.instances = [];
+    FakeAudio.playBehavior = () => Promise.resolve();
     await TestBed.configureTestingModule({
       imports: [PokemonDetail],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: CRY_AUDIO_FACTORY,
+          useValue: (src: string) => new FakeAudio(src) as unknown as HTMLAudioElement,
+        },
+      ],
     }).compileComponents();
 
     httpMock = TestBed.inject(HttpTestingController);
@@ -414,5 +461,64 @@ describe('PokemonDetail', () => {
 
     expect(el.querySelector('.detail__status--error')).toBeFalsy();
     expect(el.querySelector('.detail__name')?.textContent).toContain('フシギダネ');
+  });
+
+  it('plays the cry through the PokeAPI URL when the play button is clicked', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button.disabled).toBe(false);
+
+    button.click();
+    await render(fixture);
+
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(FakeAudio.instances[0]?.src).toBe('https://cries.test/1.ogg');
+  });
+
+  it('labels the play button accessibly and follows a locale change', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button.getAttribute('aria-label')).toBe('なきごえを さいせい');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    expect(button.getAttribute('aria-label')).toBe('Play cry');
+  });
+
+  it('disables the play button and uses the unavailable label when there is no cry', async () => {
+    const fixture = createFixture('1');
+    await flushDetailWith(fixture, { ...BULBASAUR, cryUrl: null });
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-label')).toBe('なきごえが ありません');
+
+    button.click();
+    await render(fixture);
+
+    // 音源が無いので Audio は生成されない。
+    expect(FakeAudio.instances).toHaveLength(0);
+  });
+
+  it('disables the button after a playback failure (graceful fallback)', async () => {
+    FakeAudio.playBehavior = () => Promise.reject(new Error('blocked'));
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('.detail__cry') as HTMLButtonElement;
+
+    button.click();
+    await render(fixture);
+
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-label')).toBe('なきごえが ありません');
   });
 });

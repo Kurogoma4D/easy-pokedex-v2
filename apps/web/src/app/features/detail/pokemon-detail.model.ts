@@ -108,4 +108,9 @@ export interface PokemonDetailResponse {
   readonly isLegendary: boolean;
   /** 幻のポケモンか。 */
   readonly isMythical: boolean;
+  /**
+   * 鳴き声の音源 URL（PokeAPI 由来）。フロントはこの URL を直接 Audio で再生する。
+   * 音源が無い場合は null で、再生ボタンを無効化する。
+   */
+  readonly cryUrl: string | null;
 }

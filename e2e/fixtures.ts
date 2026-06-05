@@ -91,6 +91,7 @@ export const CHARIZARD_DETAIL = {
   generation: 'generation-i',
   isLegendary: false,
   isMythical: false,
+  cryUrl: 'https://cries.test/charizard.ogg',
 } as const;
 
 /**
@@ -132,6 +133,8 @@ export const MEW_DETAIL = {
   generation: 'generation-i',
   isLegendary: true,
   isMythical: true,
+  // 音源欠落時に再生ボタンが無効化されることを E2E で確認するため null にする。
+  cryUrl: null,
 } as const;
 
 /** 名前検索（`?name=...`）のスタブ結果。リザードンと近縁の数体だけを返す。 */
@@ -243,6 +246,16 @@ export async function stubBff(page: Page): Promise<void> {
   });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
   await page.route('**/api/pokemon/151', (route) => fulfillJson(route, MEW_DETAIL));
+
+  // 鳴き声は PokeAPI 由来 URL をフロントが直接 Audio で参照する（BFF プロキシなし）。
+  // E2E をネットワーク非依存にするため、最小の OGG を打ち返して再生要求を成立させる。
+  await page.route('**/cries.test/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/ogg',
+      body: Buffer.from('T2dnUw==', 'base64'),
+    }),
+  );
 
   await page.route('https://raw.githubusercontent.com/**', (route) =>
     route.fulfill({

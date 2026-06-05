@@ -100,3 +100,11 @@ export function selectImageUrl(pokemon: PokeApiPokemon): string | null {
     pokemon.sprites.other?.['official-artwork']?.front_default ?? pokemon.sprites.front_default
   );
 }
+
+/**
+ * 鳴き声の音源 URL を選ぶ。`cries.latest` を優先し、無ければ `cries.legacy`、
+ * いずれも無ければ null を返す（音源欠落時はフロントが再生ボタンを無効化する）。
+ */
+export function selectCryUrl(pokemon: PokeApiPokemon): string | null {
+  return pokemon.cries?.latest ?? pokemon.cries?.legacy ?? null;
+}

@@ -53,6 +53,12 @@ export interface PokeApiPokemonSprites {
   };
 }
 
+/** 鳴き声の音源 URL。`latest` を優先し、無ければ `legacy` を使う。いずれも欠けうる。 */
+export interface PokeApiPokemonCries {
+  readonly latest: string | null;
+  readonly legacy: string | null;
+}
+
 /** `/pokemon/{id|name}` のレスポンス。 */
 export interface PokeApiPokemon {
   readonly id: number;
@@ -65,6 +71,8 @@ export interface PokeApiPokemon {
   readonly abilities: readonly PokeApiPokemonAbility[];
   readonly sprites: PokeApiPokemonSprites;
   readonly species: PokeApiNamedResource;
+  /** 鳴き声の音源 URL。上流に欠けることがあるため省略可能。 */
+  readonly cries?: PokeApiPokemonCries;
 }
 
 export interface PokeApiFlavorTextEntry {
@@ -291,6 +299,11 @@ export interface PokemonDetail {
   readonly isLegendary: boolean;
   /** 幻のポケモンか。 */
   readonly isMythical: boolean;
+  /**
+   * 鳴き声の音源 URL（PokeAPI 由来）。`cries.latest` を優先し、無ければ `cries.legacy`、
+   * いずれも無ければ null。フロントはこの URL を直接 Audio で参照する（BFF はプロキシしない）。
+   */
+  readonly cryUrl: string | null;
 }
 
 /**

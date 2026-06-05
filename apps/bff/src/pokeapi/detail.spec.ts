@@ -2,12 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
 import { computeTypeMatchups, fetchPokemonDetail } from './detail.js';
-import { buildLocalizedFlavorText, buildLocalizedGenus, formatFlavorText } from './localization.js';
+import {
+  buildLocalizedFlavorText,
+  buildLocalizedGenus,
+  formatFlavorText,
+  selectCryUrl,
+} from './localization.js';
 import type {
   PokeApiFlavorTextEntry,
   PokeApiGenus,
   PokeApiName,
   PokeApiNamedResource,
+  PokeApiPokemon,
   PokeApiType,
 } from './types.js';
 
@@ -39,6 +45,7 @@ interface PokemonFixture {
   readonly generation?: string;
   readonly isLegendary?: boolean;
   readonly isMythical?: boolean;
+  readonly cries?: { readonly latest: string | null; readonly legacy: string | null };
 }
 
 const BULBASAUR: PokemonFixture = {
@@ -84,6 +91,10 @@ const BULBASAUR: PokemonFixture = {
   generation: 'generation-i',
   isLegendary: false,
   isMythical: false,
+  cries: {
+    latest: 'https://cries.test/latest/1.ogg',
+    legacy: 'https://cries.test/legacy/1.ogg',
+  },
 };
 
 const IVYSAUR: PokemonFixture = {
@@ -157,6 +168,7 @@ function pokemonBody(f: PokemonFixture): unknown {
       other: { 'official-artwork': { front_default: f.artwork ?? null } },
     },
     species: { name: f.name, url: `${UPSTREAM}/pokemon-species/${f.id}/` },
+    ...(f.cries !== undefined ? { cries: f.cries } : {}),
   };
 }
 
@@ -300,6 +312,7 @@ describe('fetchPokemonDetail', () => {
     expect(detail.generation).toBe('generation-i');
     expect(detail.isLegendary).toBe(false);
     expect(detail.isMythical).toBe(false);
+    expect(detail.cryUrl).toBe('https://cries.test/latest/1.ogg');
     expect(detail.genus).toEqual({ ja: 'たねポケモン', en: 'Seed Pokémon' });
     // 改行・改ページ制御文字が単一スペースへ畳まれ、同一言語の最新版が選ばれる。
     expect(detail.flavorText).toEqual({
@@ -462,6 +475,8 @@ describe('fetchPokemonDetail', () => {
       },
     ]);
     expect(detail.imageUrl).toBeNull();
+    // 上流が cries を返さない場合は cryUrl が null になり、フロントが再生ボタンを無効化できる。
+    expect(detail.cryUrl).toBeNull();
     expect(detail.evolutionChain.id).toBe(99);
     expect(detail.evolutionChain.evolvesTo).toEqual([]);
   });
@@ -696,5 +711,44 @@ describe('buildLocalizedGenus', () => {
   it('tolerates undefined or empty genera and uses the fallback', () => {
     expect(buildLocalizedGenus(undefined)).toEqual({ ja: '', en: '' });
     expect(buildLocalizedGenus([], 'unknown')).toEqual({ ja: 'unknown', en: 'unknown' });
+  });
+});
+
+/** cries フィールドのみを差し替えて selectCryUrl を直接検証するための最小ポケモン。 */
+function pokemonWithCries(cries: PokeApiPokemon['cries']): PokeApiPokemon {
+  return {
+    id: 1,
+    name: 'x',
+    height: 1,
+    weight: 1,
+    base_experience: 1,
+    types: [],
+    stats: [],
+    abilities: [],
+    sprites: { front_default: null, front_shiny: null },
+    species: { name: 'x', url: '' },
+    cries,
+  };
+}
+
+describe('selectCryUrl', () => {
+  it('prefers cries.latest over cries.legacy', () => {
+    expect(selectCryUrl(pokemonWithCries({ latest: 'latest.ogg', legacy: 'legacy.ogg' }))).toBe(
+      'latest.ogg',
+    );
+  });
+
+  it('falls back to cries.legacy when latest is missing', () => {
+    expect(selectCryUrl(pokemonWithCries({ latest: null, legacy: 'legacy.ogg' }))).toBe(
+      'legacy.ogg',
+    );
+  });
+
+  it('returns null when both latest and legacy are missing', () => {
+    expect(selectCryUrl(pokemonWithCries({ latest: null, legacy: null }))).toBeNull();
+  });
+
+  it('returns null when cries is absent', () => {
+    expect(selectCryUrl(pokemonWithCries(undefined))).toBeNull();
   });
 });

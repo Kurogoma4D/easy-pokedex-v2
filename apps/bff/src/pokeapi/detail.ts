@@ -4,6 +4,7 @@ import {
   buildLocalizedFlavorText,
   buildLocalizedGenus,
   buildLocalizedName,
+  selectCryUrl,
   selectImageUrl,
 } from './localization.js';
 import type {
@@ -270,5 +271,6 @@ export async function fetchPokemonDetail(
     generation: species.generation.name,
     isLegendary: species.is_legendary,
     isMythical: species.is_mythical,
+    cryUrl: selectCryUrl(pokemon),
   };
 }
