@@ -77,6 +77,23 @@ const BULBASAUR: PokemonDetailResponse = {
     ],
     immunities: [],
   },
+  flavorText: { ja: 'たねを せおって うまれる。', en: 'It bears a seed on its back.' },
+  genus: { ja: 'たねポケモン', en: 'Seed Pokémon' },
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
+};
+
+/** 伝説・幻バッジの表示確認用。世代も未知の識別子を渡し、識別子フォールバックを兼ねて検証する。 */
+const MEW: PokemonDetailResponse = {
+  ...BULBASAUR,
+  id: 151,
+  name: { ja: 'ミュウ', en: 'Mew' },
+  flavorText: { ja: 'すべての ポケモンの そせん。', en: 'The ancestor of all Pokémon.' },
+  genus: { ja: 'しんしゅポケモン', en: 'New Species Pokémon' },
+  generation: 'generation-i',
+  isLegendary: true,
+  isMythical: true,
 };
 
 describe('PokemonDetail', () => {
@@ -148,6 +165,55 @@ describe('PokemonDetail', () => {
     expect(el.querySelectorAll('.stats__row').length).toBe(6);
     expect(el.querySelectorAll('.abilities__item').length).toBe(2);
     expect(el.querySelectorAll('.evo__node').length).toBe(3);
+  });
+
+  it('renders the dex entry, genus and generation', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__flavor')?.textContent).toContain(
+      'たねを せおって うまれる。',
+    );
+    expect(el.querySelector('.detail__genus')?.textContent).toContain('たねポケモン');
+    // 世代は GENERATIONS の表示名へ解決される。
+    expect(el.querySelector('.detail__metrics')?.textContent).toContain('第1世代');
+  });
+
+  it('shows legendary / mythical badges only for legendary or mythical species', async () => {
+    const ordinary = createFixture('1');
+    await flushDetail(ordinary);
+    expect((ordinary.nativeElement as HTMLElement).querySelector('.detail__badges')).toBeFalsy();
+
+    const fixture = createFixture('151');
+    const req = await awaitRequest(fixture, '/api/pokemon/151');
+    req.flush(MEW);
+    await render(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__badge--legendary')?.textContent).toContain('でんせつ');
+    expect(el.querySelector('.detail__badge--mythical')?.textContent).toContain('まぼろし');
+  });
+
+  it('localizes the dex entry, genus and generation when the locale changes', async () => {
+    const fixture = createFixture('1');
+    await flushDetail(fixture);
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.detail__flavor')?.textContent).toContain(
+      'たねを せおって うまれる。',
+    );
+    expect(el.querySelector('.detail__genus')?.textContent).toContain('たねポケモン');
+    expect(el.querySelector('.detail__metrics')?.textContent).toContain('第1世代');
+
+    TestBed.inject(LocaleService).setLocale('en');
+    await render(fixture);
+
+    expect(el.querySelector('.detail__flavor')?.textContent).toContain(
+      'It bears a seed on its back.',
+    );
+    expect(el.querySelector('.detail__genus')?.textContent).toContain('Seed Pokémon');
+    expect(el.querySelector('.detail__metrics')?.textContent).toContain('Generation I');
   });
 
   it('marks the hidden ability', async () => {

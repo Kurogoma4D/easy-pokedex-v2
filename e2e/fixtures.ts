@@ -84,6 +84,51 @@ export const CHARIZARD_DETAIL = {
     ],
     immunities: [{ multiplier: 0, types: [type('ground', 'じめん', 'Ground')] }],
   },
+  flavorText: {
+    ja: 'からだの ほのおは げんきの しょうこ。',
+    en: 'Its fiery breath is a sign of health.',
+  },
+  genus: { ja: 'かえんポケモン', en: 'Flame Pokémon' },
+  generation: 'generation-i',
+  isLegendary: false,
+  isMythical: false,
+} as const;
+
+/**
+ * ミュウツー（エスパー）の詳細スタブ。伝説のポケモンとしてバッジ表示を検証する。
+ * 図鑑情報の最小限（説明文・分類・世代・伝説フラグ）だけを確定値で持つ。
+ */
+export const MEWTWO_DETAIL = {
+  id: 150,
+  name: { ja: 'ミュウツー', en: 'Mewtwo' },
+  imageUrl: sprite(150),
+  height: 20,
+  weight: 1220,
+  types: [type('psychic', 'エスパー', 'Psychic')],
+  stats: [
+    { id: 'hp', base: 106 },
+    { id: 'attack', base: 110 },
+  ],
+  abilities: [{ id: 'pressure', name: { ja: 'プレッシャー', en: 'Pressure' }, isHidden: false }],
+  evolutionChain: {
+    id: 150,
+    name: { ja: 'ミュウツー', en: 'Mewtwo' },
+    imageUrl: sprite(150),
+    evolvesTo: [],
+  },
+  typeMatchups: {
+    weaknesses: [],
+    resistances: [],
+    immunities: [],
+  },
+  flavorText: {
+    ja: 'いでんしそうさで うみだされた ポケモン。',
+    en: 'A Pokémon created by gene manipulation.',
+  },
+  genus: { ja: 'いでんしポケモン', en: 'Genetic Pokémon' },
+  generation: 'generation-i',
+  isLegendary: true,
+  isMythical: false,
 } as const;
 
 /** 名前検索（`?name=...`）のスタブ結果。リザードンと近縁の数体だけを返す。 */
@@ -194,6 +239,7 @@ export async function stubBff(page: Page): Promise<void> {
     return fulfillJson(route, matchesSearchCandidate(name) ? SEARCH_RESULTS : EMPTY_SEARCH_RESULTS);
   });
   await page.route('**/api/pokemon/6', (route) => fulfillJson(route, CHARIZARD_DETAIL));
+  await page.route('**/api/pokemon/150', (route) => fulfillJson(route, MEWTWO_DETAIL));
 
   await page.route('https://raw.githubusercontent.com/**', (route) =>
     route.fulfill({

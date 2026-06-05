@@ -73,12 +73,19 @@ export interface PokeApiFlavorTextEntry {
   readonly version: PokeApiNamedResource;
 }
 
+/** 図鑑分類（例: ja「ねずみポケモン」/ en「Mouse Pokémon」）。`language.name` はロケールコード。 */
+export interface PokeApiGenus {
+  readonly genus: string;
+  readonly language: PokeApiNamedResource;
+}
+
 /** `/pokemon-species/{id|name}` のレスポンス。 */
 export interface PokeApiPokemonSpecies {
   readonly id: number;
   readonly name: string;
   readonly names: readonly PokeApiName[];
   readonly flavor_text_entries: readonly PokeApiFlavorTextEntry[];
+  readonly genera: readonly PokeApiGenus[];
   readonly generation: PokeApiNamedResource;
   readonly evolution_chain: { readonly url: string };
   readonly is_legendary: boolean;
@@ -274,6 +281,16 @@ export interface PokemonDetail {
   readonly evolutionChain: EvolutionNode;
   /** タイプ構成から算出した被ダメージ相性（弱点/耐性/無効）。 */
   readonly typeMatchups: PokemonTypeMatchups;
+  /** 図鑑説明文（flavor text）。選択言語の代表 1 件を ja/en で持つ。該当言語が無ければ英語へフォールバック。 */
+  readonly flavorText: LocalizedName;
+  /** 分類（genus、例: ja「ねずみポケモン」/ en「Mouse Pokémon」）。該当言語が無ければ英語へフォールバック。 */
+  readonly genus: LocalizedName;
+  /** 世代識別子（例: `generation-i`）。表示名はフロントで解決する。 */
+  readonly generation: string;
+  /** 伝説のポケモンか。 */
+  readonly isLegendary: boolean;
+  /** 幻のポケモンか。 */
+  readonly isMythical: boolean;
 }
 
 /**

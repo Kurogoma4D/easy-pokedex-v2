@@ -98,4 +98,14 @@ export interface PokemonDetailResponse {
   readonly evolutionChain: EvolutionNode;
   /** タイプ構成から算出した被ダメージ相性（弱点/耐性/無効）。 */
   readonly typeMatchups: PokemonTypeMatchups;
+  /** 図鑑説明文（flavor text）。ja/en の代表 1 件。 */
+  readonly flavorText: LocalizedName;
+  /** 分類（genus、例: ja「ねずみポケモン」/ en「Mouse Pokémon」）。 */
+  readonly genus: LocalizedName;
+  /** 世代識別子（例: `generation-i`）。表示名はフロントで解決する。 */
+  readonly generation: string;
+  /** 伝説のポケモンか。 */
+  readonly isLegendary: boolean;
+  /** 幻のポケモンか。 */
+  readonly isMythical: boolean;
 }

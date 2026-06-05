@@ -126,7 +126,27 @@ function speciesBody(f: PokemonFixture): unknown {
       { name: f.jaName, language: { name: 'ja-Hrkt', url: '' } },
       { name: f.enName, language: { name: 'en', url: '' } },
     ],
-    flavor_text_entries: [],
+    flavor_text_entries: [
+      {
+        flavor_text: `${f.enName} old\nentry`,
+        language: { name: 'en', url: '' },
+        version: { name: 'red', url: '' },
+      },
+      {
+        flavor_text: `${f.enName} seed\fsprouts`,
+        language: { name: 'en', url: '' },
+        version: { name: 'shield', url: '' },
+      },
+      {
+        flavor_text: `${f.jaName}の\nたね`,
+        language: { name: 'ja-Hrkt', url: '' },
+        version: { name: 'shield', url: '' },
+      },
+    ],
+    genera: [
+      { genus: 'たねポケモン', language: { name: 'ja-Hrkt', url: '' } },
+      { genus: 'Seed Pokémon', language: { name: 'en', url: '' } },
+    ],
     generation: { name: 'generation-i', url: '' },
     evolution_chain: { url: `${UPSTREAM}/evolution-chain/1/` },
     is_legendary: false,
@@ -240,6 +260,22 @@ describe('fetchPokemonDetail', () => {
       { id: 'attack', base: 49 },
       { id: 'defense', base: 49 },
     ]);
+  });
+
+  it('includes localized flavor text, genus, generation and legendary/mythical flags', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const detail = await fetchPokemonDetail(client, 'bulbasaur');
+
+    // 選択言語の代表 1 件（最新バージョン側）を採り、`\n`/`\f` を空白へ畳み込む。
+    expect(detail.flavorText).toEqual({
+      ja: 'フシギダネの たね',
+      en: 'Bulbasaur seed sprouts',
+    });
+    expect(detail.genus).toEqual({ ja: 'たねポケモン', en: 'Seed Pokémon' });
+    expect(detail.generation).toBe('generation-i');
+    expect(detail.isLegendary).toBe(false);
+    expect(detail.isMythical).toBe(false);
   });
 
   it('returns proper nouns (types and abilities) in both ja and en', async () => {
@@ -360,10 +396,17 @@ describe('fetchPokemonDetail', () => {
           id: 99,
           name: 'loner',
           names: [{ name: 'Loner', language: { name: 'en', url: '' } }],
-          flavor_text_entries: [],
-          generation: { name: 'generation-i', url: '' },
+          flavor_text_entries: [
+            {
+              flavor_text: 'A lonely\fmystery.',
+              language: { name: 'en', url: '' },
+              version: { name: 'sword', url: '' },
+            },
+          ],
+          genera: [{ genus: 'Mystery Pokémon', language: { name: 'en', url: '' } }],
+          generation: { name: 'generation-viii', url: '' },
           evolution_chain: { url: `${UPSTREAM}/evolution-chain/9/` },
-          is_legendary: false,
+          is_legendary: true,
           is_mythical: false,
         });
       }
@@ -397,6 +440,13 @@ describe('fetchPokemonDetail', () => {
     expect(detail.imageUrl).toBeNull();
     expect(detail.evolutionChain.id).toBe(99);
     expect(detail.evolutionChain.evolvesTo).toEqual([]);
+
+    // ja のデータが無い説明文・分類は英語へフォールバックし、両ロケールが英語表記で埋まる。
+    expect(detail.flavorText).toEqual({ ja: 'A lonely mystery.', en: 'A lonely mystery.' });
+    expect(detail.genus).toEqual({ ja: 'Mystery Pokémon', en: 'Mystery Pokémon' });
+    expect(detail.generation).toBe('generation-viii');
+    expect(detail.isLegendary).toBe(true);
+    expect(detail.isMythical).toBe(false);
   });
 });
 

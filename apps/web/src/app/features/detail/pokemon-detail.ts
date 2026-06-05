@@ -6,6 +6,7 @@ import { LocalizedName } from '../../i18n/localized-name';
 import { MessageKey } from '../../i18n/messages';
 import { Icon } from '../../shared/icon/icon';
 import { PokemonApiService } from '../list/pokemon-api.service';
+import { GENERATIONS } from '../list/pokemon-filters';
 import { TypeChip } from '../shared/type-chip';
 import type { EvolutionNode, PokemonTypeMatchupGroup } from './pokemon-detail.model';
 
@@ -21,6 +22,11 @@ const STAT_LABEL_KEYS = new Map<string, MessageKey>([
   ['special-defense', 'stat.special-defense'],
   ['speed', 'stat.speed'],
 ]);
+
+/** 世代識別子（`generation-i` など）から ja/en の表示名を引く。未知の識別子は識別子そのままを出せるよう Map で扱う。 */
+const GENERATION_NAME_BY_ID = new Map(
+  GENERATIONS.map((generation) => [generation.id, generation.name]),
+);
 
 /** 進化チェーンのツリーを描画順の一次元配列へ平坦化する（分岐は深さ優先で直列化）。 */
 function flattenChain(root: EvolutionNode): readonly EvolutionNode[] {
@@ -96,6 +102,21 @@ function formatMultiplier(multiplier: number): string {
             }
           </div>
           <h1 class="detail__name">{{ name() }}</h1>
+          <p class="detail__genus">{{ localize(detail.genus) }}</p>
+          @if (detail.isLegendary || detail.isMythical) {
+            <div class="detail__badges">
+              @if (detail.isLegendary) {
+                <span class="detail__badge detail__badge--legendary">{{
+                  messages()['detail.legendary']
+                }}</span>
+              }
+              @if (detail.isMythical) {
+                <span class="detail__badge detail__badge--mythical">{{
+                  messages()['detail.mythical']
+                }}</span>
+              }
+            </div>
+          }
           <div class="detail__types">
             @for (type of detail.types; track type.id) {
               <app-type-chip [type]="type.id" [name]="type.name" />
@@ -110,8 +131,19 @@ function formatMultiplier(multiplier: number): string {
               <dt>{{ messages()['detail.weight'] }}</dt>
               <dd>{{ weightKg() }} kg</dd>
             </div>
+            <div>
+              <dt>{{ messages()['detail.generation'] }}</dt>
+              <dd>{{ generationLabel() }}</dd>
+            </div>
           </dl>
         </header>
+
+        @if (flavorText()) {
+          <section class="detail__panel">
+            <h2 class="detail__heading">{{ messages()['detail.dexEntry'] }}</h2>
+            <p class="detail__flavor">{{ flavorText() }}</p>
+          </section>
+        }
 
         <section class="detail__panel">
           <h2 class="detail__heading">{{ messages()['detail.stats'] }}</h2>
@@ -207,6 +239,9 @@ function formatMultiplier(multiplier: number): string {
     /* Shared dot-matrix label face for the dex chrome. */
     .detail__back,
     .detail__dex,
+    .detail__genus,
+    .detail__badge,
+    .detail__flavor,
     .detail__metrics dt,
     .detail__metrics dd,
     .detail__status,
@@ -306,6 +341,30 @@ function formatMultiplier(multiplier: number): string {
     .detail__name {
       margin: 0;
       font-size: var(--font-size-display-lg);
+    }
+    .detail__genus {
+      margin: 0;
+      color: var(--color-text-muted);
+    }
+    .detail__badges {
+      display: flex;
+      gap: var(--space-2);
+    }
+    .detail__badge {
+      padding: var(--space-1) var(--space-2);
+      border: var(--border-width-chunky) solid var(--color-border);
+      border-radius: var(--radius-chip);
+      color: var(--color-text-inverse);
+    }
+    .detail__badge--legendary {
+      background-color: var(--lcd-2);
+    }
+    .detail__badge--mythical {
+      background-color: var(--color-text-muted);
+    }
+    .detail__flavor {
+      margin: 0;
+      line-height: 1.6;
     }
     .detail__types {
       display: flex;
@@ -513,6 +572,19 @@ export class PokemonDetail {
   protected readonly statTotal = computed(() => {
     const detail = this.data();
     return detail ? detail.stats.reduce((sum, stat) => sum + stat.base, 0) : 0;
+  });
+  protected readonly flavorText = computed(() => {
+    const detail = this.data();
+    return detail ? this.localeService.localizeName(detail.flavorText) : '';
+  });
+  protected readonly generationLabel = computed(() => {
+    const detail = this.data();
+    if (!detail) {
+      return '';
+    }
+    const name = GENERATION_NAME_BY_ID.get(detail.generation);
+    // 未知の世代識別子（上流が新世代を返した等）でも空にせず識別子をそのまま出す。
+    return name ? this.localeService.localizeName(name) : detail.generation;
   });
   protected readonly evolution = computed<readonly EvolutionNode[]>(() => {
     const detail = this.data();
