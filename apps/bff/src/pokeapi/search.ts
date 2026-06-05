@@ -69,9 +69,15 @@ interface NameMatchMaterial {
   readonly species: PokeApiPokemonSpecies;
 }
 
-/** 部分一致用に大小文字・前後空白を正規化する。 */
+/**
+ * 部分一致用に前後空白・大小文字・かな種別を正規化する。
+ *
+ * `matchesName` はクエリと候補名（en/ja/slug）の双方をこの関数に通すため、ここで `normalizeKana`
+ * を畳み込むことで、ひらがな入力でもカタカナの ja 名（`ja-Hrkt`）にヒットするようかな種別が
+ * 双方に一貫して揃う。ASCII・英語名には NFKC が無作用でひらがなも含まないため挙動は変わらない。
+ */
 function normalize(value: string): string {
-  return value.trim().toLowerCase();
+  return normalizeKana(value.trim().toLowerCase());
 }
 
 /** ひらがなのコードポイント範囲（U+3041「ぁ」〜U+3096「ゖ」）。 */
