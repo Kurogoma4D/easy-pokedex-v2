@@ -23,8 +23,8 @@ const DEFAULT_SEARCH_CONCURRENCY = 6;
  *
  * タイプ・世代の指定が無く名前のみで検索する場合、絞り込みのための安価なメンバー集合が
  * 無いため候補が全ポケモンに広がる。ja 名のマッチには species の多言語名が要り、候補 1 体ごとに
- * 上流 1 リクエストが発生するため、無制限だと上流へ過大な負荷をかける。実害を避けるため候補数に
- * 上限を設け、超過時はログを出して以降を切り捨てる。
+ * 上流 1 リクエスト（species のみ）が発生するため、無制限だと上流へ過大な負荷をかける。実害を
+ * 避けるため候補数に上限を設け、超過時は以降を切り捨てる。
  */
 const NAME_ONLY_CANDIDATE_CAP = 1500;
 
@@ -56,6 +56,16 @@ export interface Candidate {
 interface CandidateMaterial {
   readonly id: number;
   readonly pokemon: PokeApiPokemon;
+  readonly species: PokeApiPokemonSpecies;
+}
+
+/**
+ * 名前フィルタのマッチ判定に必要な最小の素材。`/pokemon` は引かず species のみを取得する。
+ * `slug` は候補の英語識別子（例: `bulbasaur`）で、英語スラッグでの部分一致に用いる。
+ */
+interface NameMatchMaterial {
+  readonly id: number;
+  readonly slug: string;
   readonly species: PokeApiPokemonSpecies;
 }
 
@@ -197,10 +207,13 @@ function toListItem(material: CandidateMaterial): PokemonListItem {
   };
 }
 
-function matchesName(material: CandidateMaterial, query: string): boolean {
-  const localized = buildLocalizedName(material.species.names, material.pokemon.name);
-  // en は表示名・スラッグ双方を対象にする（クエリが `bulbasaur` でも `Bulbasaur` でもヒットさせる）。
-  const haystacks = [localized.en, localized.ja, material.pokemon.name].map(normalize);
+/**
+ * species の多言語名と候補の英語スラッグだけで名前一致を判定する（`/pokemon` は不要）。
+ * en は表示名・スラッグ双方を対象にする（クエリが `bulbasaur` でも `Bulbasaur` でもヒットさせる）。
+ */
+function matchesName(material: NameMatchMaterial, query: string): boolean {
+  const localized = buildLocalizedName(material.species.names, material.slug);
+  const haystacks = [localized.en, localized.ja, material.slug].map(normalize);
   return haystacks.some((value) => value.includes(query));
 }
 
@@ -208,13 +221,17 @@ function matchesName(material: CandidateMaterial, query: string): boolean {
  * ポケモンを名前（ja/en 部分一致）・タイプ（複数 AND）・世代で絞り込んで返す（FR-2 / FR-5）。
  *
  * 検索はクライアントへ一覧を渡さず BFF 側で完結させる（spec 10. Open Questions）。タイプ・世代は
- * 上流のメンバー集合を積集合して候補 id を安価に求める。名前フィルタは候補 1 体ごとに
- * `/pokemon` `/pokemon-species` を引いて ja/en 名を解決する必要があるため、上流アクセスは
- * 注入された PokeApiClient（キャッシュ・単一フライト込み）経由で行い、個別取得はワーカープールで
- * 同時実行数を抑える。タイプ・世代の指定が無く名前のみで検索する場合は候補が全件に広がるため、
- * 候補数に上限（NAME_ONLY_CANDIDATE_CAP）を設けて上流負荷を抑える。
+ * 上流のメンバー集合を積集合して候補 id を安価に求める。名前フィルタのマッチ判定は候補 1 体ごとに
+ * `/pokemon-species` のみを引いて ja/en 名（と英語スラッグ）で行う。`/pokemon` の取得は判定後の
+ * ページ分の候補に限って遅延させるため、候補 1 体あたりの上流ファンアウトが 2（pokemon+species）
+ * から 1（species のみ）へ半減する。上流アクセスは注入された PokeApiClient（キャッシュ・単一
+ * フライト込み）経由で行い、個別取得はワーカープールで同時実行数を抑える。タイプ・世代の指定が
+ * 無く名前のみで検索する場合は候補が全件に広がるため、候補数に上限（NAME_ONLY_CANDIDATE_CAP）を
+ * 設けて上流負荷を抑える。
  *
- * ページネーションは絞り込み後の結果集合に対して行い、レスポンス 1 要素の形は一覧と揃える。
+ * count はマッチした species の件数を権威とする。ページ分の `/pokemon` が後段で 404 になった場合、
+ * results は count より少なくなりうる。ページネーションは絞り込み後の結果集合に対して行い、
+ * レスポンス 1 要素の形は一覧と揃える。
  */
 export async function searchPokemon(
   client: PokeApiClient,
@@ -239,26 +256,73 @@ export async function searchPokemon(
 
   // 名前フィルタが無くタイプ／世代だけのときは、候補 id 群をそのままページングしてから素材を
   // 取得すれば足りる（全候補の species を引かずに済む）。名前フィルタがあるときは ja/en 名の
-  // 判定に全候補の素材が要るため、先に素材を取得してから絞り込む。
+  // 判定に全候補の species が要るため、先に species のみを取得してから絞り込む。
   if (!hasNameFilter) {
     const total = candidates.length;
     const pageIds = candidates.slice(params.offset, params.offset + params.limit).map((c) => c.id);
     const materials = await fetchMaterials(client, pageIds, options, concurrency);
     const results = materials.map(toListItem);
-    return buildResponse(results, total, params);
+    // ページネーションはマッチ集合に対して進める。ページの `/pokemon` 404 で results が
+    // pageIds より少なくなっても、消費した候補数（pageIds.length）で nextOffset を計算し、
+    // 隙間・重複の無い 1 ページ分を確実に前進させる。
+    return buildResponse(results, total, pageIds.length, params);
   }
 
-  const materials = await fetchMaterials(
+  // マッチ判定は species のみで行い、`/pokemon` の取得はページ分の候補に限って遅延させる。
+  // これにより非マッチ候補の `/pokemon` 取得が発生せず、候補 1 体あたりのファンアウトが半減する。
+  const nameMaterials = await fetchNameMatchMaterials(client, candidates, options, concurrency);
+  const matched = nameMaterials.filter((material) => matchesName(material, nameQuery));
+  // count はマッチした species の件数を権威とする（results はページの `/pokemon` 404 で少なくなりうる）。
+  const total = matched.length;
+  const page = matched.slice(params.offset, params.offset + params.limit);
+  const pageMaterials = await fetchMaterials(
     client,
-    candidates.map((c) => c.id),
+    page.map((m) => m.id),
     options,
     concurrency,
   );
-  const matched = materials.filter((material) => matchesName(material, nameQuery));
-  const total = matched.length;
-  const page = matched.slice(params.offset, params.offset + params.limit);
-  const results = page.map(toListItem);
-  return buildResponse(results, total, params);
+  const results = pageMaterials.map(toListItem);
+  // count はマッチした species 件数を権威とする一方、results はページの `/pokemon` 404 で
+  // 少なくなりうる。ページネーションは消費したマッチ候補数（page.length）で前進させ、
+  // results.length に依存させない。これにより 404 で 1 体落ちても次ページが落ちた候補の次から
+  // 始まり、その次の候補を重複返却したり落ちた枠を取りこぼしたりしない。
+  return buildResponse(results, total, page.length, params);
+}
+
+/**
+ * 候補ごとに `/pokemon-species` のみを取得し、名前マッチ判定用の素材を入力順にまとめる。
+ *
+ * species が上流 404 を返した候補はスキップする（その 1 体の欠落で検索全体を 502 に落とさない）。
+ * 404 以外（上流障害等）はそのまま伝播し、従来どおり 502 へ写像させる。
+ */
+async function fetchNameMatchMaterials(
+  client: PokeApiClient,
+  candidates: readonly Candidate[],
+  options: RequestOptions | undefined,
+  concurrency: number,
+): Promise<NameMatchMaterial[]> {
+  const speciesList = new Array<PokeApiPokemonSpecies | undefined>(candidates.length);
+
+  await mapWithConcurrency(candidates, concurrency, async (candidate, index) => {
+    try {
+      speciesList[index] = await client.fetchPokemonSpecies(candidate.id, options);
+    } catch (error) {
+      if (isNotFound(error)) {
+        return;
+      }
+      throw error;
+    }
+  });
+
+  const materials: NameMatchMaterial[] = [];
+  candidates.forEach((candidate, index) => {
+    const species = speciesList[index];
+    if (species === undefined) {
+      return;
+    }
+    materials.push({ id: candidate.id, slug: candidate.slug, species });
+  });
+  return materials;
 }
 
 /**
@@ -320,13 +384,19 @@ async function fetchMaterials(
   return materials;
 }
 
+/**
+ * `consumed` はこのページで消費したマッチ候補数（ページスライスの長さ）であり、results の
+ * 長さではない。ページの `/pokemon` 404 で results.length < consumed になっても、nextOffset は
+ * 消費した候補数で前進させ、隙間・重複の無いページングを保つ。
+ */
 function buildResponse(
   results: readonly PokemonListItem[],
   total: number,
+  consumed: number,
   params: PokemonSearchParams,
 ): PokemonSearchResponse {
-  const consumed = params.offset + results.length;
-  const nextOffset = consumed < total ? consumed : null;
+  const nextStart = params.offset + consumed;
+  const nextOffset = nextStart < total ? nextStart : null;
   return {
     count: total,
     offset: params.offset,

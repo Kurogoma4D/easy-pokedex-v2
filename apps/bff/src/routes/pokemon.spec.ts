@@ -527,4 +527,43 @@ describe('GET /pokemon/search', () => {
     const res = await app.request('/pokemon/search?generation=not a generation');
     expect(res.status).toBe(400);
   });
+
+  it('hits a name-only search on a cold cache (no prior filter) for ja and en', async () => {
+    for (const [query, expectedId, expectedName] of [
+      ['ヒトカゲ', 4, { ja: 'ヒトカゲ', en: 'Charmander' }],
+      ['Charmander', 4, { ja: 'ヒトカゲ', en: 'Charmander' }],
+    ] as const) {
+      const fetchImpl = makeSearchFetchImpl();
+      const app = makeApp(fetchImpl as unknown as ReturnType<typeof makeFetchImpl>);
+
+      const res = await app.request(`/pokemon/search?name=${encodeURIComponent(query)}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as PokemonSearchResponse;
+      expect(body.results.map((r) => r.id)).toEqual([expectedId]);
+      expect(body.results[0]?.name).toEqual(expectedName);
+
+      // マッチ判定は species のみで行うため、`/pokemon` はマッチした id でだけ引かれる。
+      const fetchedPokemonIds = fetchImpl.mock.calls
+        .map((call) => /\/pokemon\/(\d+)\/?$/.exec(new URL(String(call[0])).pathname))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map((m) => Number(m[1]));
+      expect(fetchedPokemonIds).toEqual([expectedId]);
+    }
+  });
+
+  it('returns the same name-only result regardless of a preceding filter pass', async () => {
+    // 状態非依存: コールドキャッシュの直接検索と、先行フィルタでキャッシュを温めた後の検索が一致する。
+    const coldApp = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+    const coldRes = await coldApp.request('/pokemon/search?name=ヒトカゲ');
+    const cold = (await coldRes.json()) as PokemonSearchResponse;
+
+    const warmApp = makeApp(makeSearchFetchImpl() as unknown as ReturnType<typeof makeFetchImpl>);
+    // 先にタイプフィルタを通して個別 pokemon/species をキャッシュへ温める。
+    await warmApp.request('/pokemon/search?type=fire');
+    const warmRes = await warmApp.request('/pokemon/search?name=ヒトカゲ');
+    const warm = (await warmRes.json()) as PokemonSearchResponse;
+
+    expect(warm).toEqual(cold);
+    expect(cold.results.map((r) => r.id)).toEqual([4]);
+  });
 });
