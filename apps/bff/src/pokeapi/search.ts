@@ -69,9 +69,32 @@ interface NameMatchMaterial {
   readonly species: PokeApiPokemonSpecies;
 }
 
-/** 部分一致用に大小文字・前後空白を正規化する。 */
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
+/**
+ * 全角英数字・記号を半角へ、半角カタカナを全角へ畳み込んだうえで、ひらがなをカタカナへ寄せる。
+ *
+ * PokeAPI の ja-Hrkt 名はカタカナ（例: リザードン）で提供される一方、日本語 IME の既定入力は
+ * ひらがな（例: りざ）。検索クエリと候補名の双方を同一のかな種別（カタカナ）へ正規化しないと、
+ * ひらがな入力がカタカナ名に一致せず 0 件になる。全角/半角差も吸収して入力ゆれを抑える。
+ */
+function normalizeKana(value: string): string {
+  // 半角カタカナ（濁点・半濁点の結合を含む）や全角英数字を NFKC で標準形へ畳み、種別判定を安定させる。
+  const folded = value.normalize('NFKC');
+  // ひらがな（U+3041〜U+3096）をカタカナへ寄せる。両かなのコードポイント差は一律 0x60。
+  let result = '';
+  for (const ch of folded) {
+    const code = ch.codePointAt(0)!;
+    if (code >= 0x3041 && code <= 0x3096) {
+      result += String.fromCodePoint(code + 0x60);
+    } else {
+      result += ch;
+    }
+  }
+  return result;
+}
+
+/** 部分一致用に大小文字・前後空白・かな種別・全角半角を正規化する。 */
+export function normalize(value: string): string {
+  return normalizeKana(value.trim().toLowerCase());
 }
 
 /** 上流 404 か（未知のリソース名はメンバー無しとして扱うための判定）。 */

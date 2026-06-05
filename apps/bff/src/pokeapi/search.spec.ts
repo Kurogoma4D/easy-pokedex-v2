@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { resolveCandidates, searchPokemon } from './search.js';
+import { normalize, resolveCandidates, searchPokemon } from './search.js';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -62,6 +62,40 @@ const FIXTURES: readonly Fixture[] = [
     enName: 'Chikorita',
     types: ['grass'],
     generation: 'generation-ii',
+  },
+  // かな正規化（ひらがな⇔カタカナ）の検証用。ja-Hrkt はカタカナで「リザ」を部分文字列に含む。
+  // 既存テストの type/英語名/世代の集合に干渉しないよう、専用の type(kana)・generation・英語スラッグを用いる。
+  {
+    id: 5,
+    name: 'kanamon-a',
+    jaName: 'リザード',
+    enName: 'Kanamon A',
+    types: ['kana'],
+    generation: 'generation-kana',
+  },
+  {
+    id: 6,
+    name: 'kanamon-b',
+    jaName: 'リザードン',
+    enName: 'Kanamon B',
+    types: ['kana'],
+    generation: 'generation-kana',
+  },
+  {
+    id: 56,
+    name: 'kanamon-c',
+    jaName: 'オコリザル',
+    enName: 'Kanamon C',
+    types: ['kana'],
+    generation: 'generation-kana',
+  },
+  {
+    id: 896,
+    name: 'kanamon-d',
+    jaName: 'ブリザポス',
+    enName: 'Kanamon D',
+    types: ['kana'],
+    generation: 'generation-kana',
   },
 ];
 
@@ -592,6 +626,54 @@ describe('searchPokemon', () => {
 
     expect(maxInFlight).toBeLessThanOrEqual(3);
     expect(maxInFlight).toBeGreaterThan(0);
+  });
+
+  it('matches katakana names when the query is entered in hiragana', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    // ひらがな「りざ」が、カタカナ名（リザード/リザードン/オコリザル/ブリザポス）にヒットする。
+    const result = await searchPokemon(client, { name: 'りざ', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id).sort((a, b) => a - b)).toEqual([5, 6, 56, 896]);
+  });
+
+  it('returns the same result set for hiragana and katakana queries', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const hiragana = await searchPokemon(client, { name: 'りざ', limit: 20, offset: 0 });
+    const katakana = await searchPokemon(client, { name: 'リザ', limit: 20, offset: 0 });
+
+    const ids = (r: typeof hiragana): number[] => r.results.map((x) => x.id).sort((a, b) => a - b);
+    expect(ids(hiragana)).toEqual(ids(katakana));
+    expect(ids(katakana)).toEqual([5, 6, 56, 896]);
+  });
+
+  it('matches a halfwidth-katakana query against fullwidth katakana names', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    // 半角カタカナ「ﾘｻﾞ」も正規化で全角カタカナに畳まれ、同じ結果へ収束する。
+    const result = await searchPokemon(client, { name: 'ﾘｻﾞ', limit: 20, offset: 0 });
+
+    expect(result.results.map((r) => r.id).sort((a, b) => a - b)).toEqual([5, 6, 56, 896]);
+  });
+});
+
+describe('normalize', () => {
+  it('folds hiragana to katakana', () => {
+    expect(normalize('りざ')).toBe(normalize('リザ'));
+    expect(normalize('りざーどん')).toBe('リザードン');
+  });
+
+  it('folds halfwidth katakana to fullwidth via NFKC', () => {
+    expect(normalize('ﾘｻﾞｰﾄﾞﾝ')).toBe('リザードン');
+  });
+
+  it('trims surrounding whitespace and lowercases ascii', () => {
+    expect(normalize('  CHARm ')).toBe('charm');
+  });
+
+  it('leaves katakana unchanged', () => {
+    expect(normalize('リザ')).toBe('リザ');
   });
 });
 

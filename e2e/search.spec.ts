@@ -22,4 +22,19 @@ test.describe('Pokemon name search', () => {
     await expect(card).toBeVisible();
     await expect(card.locator('.card__dex')).toHaveText('#006');
   });
+
+  test('hiragana query reaches search and renders the katakana-named result', async ({ page }) => {
+    await stubBff(page);
+    await page.goto('/list');
+
+    const grid = page.locator('.list__grid');
+    await expect(grid).toBeVisible();
+
+    // ひらがな「りざ」で検索する。かな正規化（BFF 側）により、カタカナ名のリザードンに一致する。
+    await page.getByRole('searchbox').fill('りざ');
+
+    const card = grid.locator('.card', { hasText: 'リザードン' });
+    await expect(card).toBeVisible();
+    await expect(card.locator('.card__dex')).toHaveText('#006');
+  });
 });
