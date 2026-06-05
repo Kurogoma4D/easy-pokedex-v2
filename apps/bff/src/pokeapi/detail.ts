@@ -1,6 +1,11 @@
 import type { PokeApiClient, RequestOptions } from './client.js';
 import { extractIdFromResourceUrl, mapWithConcurrency } from './list.js';
-import { buildLocalizedName, selectImageUrl } from './localization.js';
+import {
+  buildLocalizedFlavorText,
+  buildLocalizedGenus,
+  buildLocalizedName,
+  selectImageUrl,
+} from './localization.js';
 import type {
   EvolutionNode,
   PokeApiAbility,
@@ -260,5 +265,10 @@ export async function fetchPokemonDetail(
     abilities: toAbilityDetails(pokemon, abilityByName),
     evolutionChain: toEvolutionNode(evolutionChain.chain, pokemonById, speciesById),
     typeMatchups: computeTypeMatchups(typeNames, typeByName),
+    flavorText: buildLocalizedFlavorText(species.flavor_text_entries),
+    genus: buildLocalizedGenus(species.genera),
+    generation: species.generation.name,
+    isLegendary: species.is_legendary,
+    isMythical: species.is_mythical,
   };
 }
