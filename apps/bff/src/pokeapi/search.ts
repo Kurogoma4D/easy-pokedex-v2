@@ -44,6 +44,15 @@ function isDefaultFormId(id: number): boolean {
   return id < ALTERNATE_FORM_ID_THRESHOLD;
 }
 
+/**
+ * 候補 1 体分の解決済み情報。`slug` は英語の既定フォーム識別子（例: `bulbasaur`）で、
+ * 安価なメンバー集合（`/pokemon` 一覧・`/type` メンバー・`/generation` 種）の `name` から取得する。
+ */
+export interface Candidate {
+  readonly id: number;
+  readonly slug: string;
+}
+
 interface CandidateMaterial {
   readonly id: number;
   readonly pokemon: PokeApiPokemon;
@@ -101,34 +110,49 @@ async function mapNotFoundToEmptyGeneration(
  * タイプ・世代のメンバー一覧は上流の 1 リソースで得られるため、全ポケモンを取得して
  * 絞り込むより遥かに安価（spec 7. 上流負荷抑制）。
  */
-async function resolveCandidateIds(
+export async function resolveCandidates(
   client: PokeApiClient,
   params: PokemonSearchParams,
   options: RequestOptions | undefined,
-): Promise<number[]> {
+): Promise<Candidate[]> {
   const sets: Set<number>[] = [];
+  // 安価なメンバー集合から得た英語スラッグ。複数集合に同一 id が現れた場合は先勝ちで保持する。
+  const slugById = new Map<number, string>();
+
+  const rememberSlug = (id: number, slug: string): void => {
+    if (!slugById.has(id)) {
+      slugById.set(id, slug);
+    }
+  };
 
   const typeNames = (params.types ?? []).map(normalize).filter((t) => t.length > 0);
   for (const typeName of typeNames) {
     const type = await mapNotFoundToEmptyType(client.fetchType(typeName, options));
     // type のメンバーは pokemon id 空間（別フォーム含む）。species id 空間（世代・種取得）と
     // 揃えるため、既定フォーム（全国図鑑番号）のみに正規化してから積集合に用いる。
-    sets.push(
-      new Set(
-        type.pokemon
-          .map((entry) => extractIdFromResourceUrl(entry.pokemon.url))
-          .filter(isDefaultFormId),
-      ),
-    );
+    const ids = new Set<number>();
+    for (const entry of type.pokemon) {
+      const id = extractIdFromResourceUrl(entry.pokemon.url);
+      if (!isDefaultFormId(id)) {
+        continue;
+      }
+      ids.add(id);
+      rememberSlug(id, entry.pokemon.name);
+    }
+    sets.push(ids);
   }
 
   if (params.generation !== undefined && normalize(params.generation).length > 0) {
     const generation = await mapNotFoundToEmptyGeneration(
       client.fetchGeneration(normalize(params.generation), options),
     );
-    sets.push(
-      new Set(generation.pokemon_species.map((entry) => extractIdFromResourceUrl(entry.url))),
-    );
+    const ids = new Set<number>();
+    for (const entry of generation.pokemon_species) {
+      const id = extractIdFromResourceUrl(entry.url);
+      ids.add(id);
+      rememberSlug(id, entry.name);
+    }
+    sets.push(ids);
   }
 
   if (sets.length === 0) {
@@ -136,7 +160,15 @@ async function resolveCandidateIds(
     // `/pokemon` 一覧は別フォーム（id >= ALTERNATE_FORM_ID_THRESHOLD）を含む。別フォーム id での
     // species 取得は上流 404 で後段の 404 ガードに落ちるため候補としては無意味で、
     // NAME_ONLY_CANDIDATE_CAP の枠を浪費する。タイプ集合の正規化と同様に既定フォームのみへ揃える。
-    return list.results.map((entry) => extractIdFromResourceUrl(entry.url)).filter(isDefaultFormId);
+    const candidates: Candidate[] = [];
+    for (const entry of list.results) {
+      const id = extractIdFromResourceUrl(entry.url);
+      if (!isDefaultFormId(id)) {
+        continue;
+      }
+      candidates.push({ id, slug: entry.name });
+    }
+    return candidates;
   }
 
   // 最小の集合を基準に積集合を取り、走査回数を抑える。
@@ -149,7 +181,8 @@ async function resolveCandidateIds(
     }
   }
   // メンバー一覧の並びは安定とは限らないため、図鑑番号順で返す。
-  return intersection.sort((a, b) => a - b);
+  intersection.sort((a, b) => a - b);
+  return intersection.map((id) => ({ id, slug: slugById.get(id) ?? String(id) }));
 }
 
 function toListItem(material: CandidateMaterial): PokemonListItem {
@@ -192,7 +225,7 @@ export async function searchPokemon(
   const nameQuery = params.name === undefined ? '' : normalize(params.name);
   const hasNameFilter = nameQuery.length > 0;
 
-  let candidateIds = await resolveCandidateIds(client, params, options);
+  let candidates = await resolveCandidates(client, params, options);
 
   const hasMembershipFilter =
     (params.types ?? []).some((t) => normalize(t).length > 0) ||
@@ -200,22 +233,27 @@ export async function searchPokemon(
 
   // 名前のみの検索は候補が全件に広がり候補 1 体ごとに上流取得が発生するため、候補数を
   // NAME_ONLY_CANDIDATE_CAP で切り捨てて上流負荷の上限を保つ（超過分は走査対象から除外する）。
-  if (hasNameFilter && !hasMembershipFilter && candidateIds.length > NAME_ONLY_CANDIDATE_CAP) {
-    candidateIds = candidateIds.slice(0, NAME_ONLY_CANDIDATE_CAP);
+  if (hasNameFilter && !hasMembershipFilter && candidates.length > NAME_ONLY_CANDIDATE_CAP) {
+    candidates = candidates.slice(0, NAME_ONLY_CANDIDATE_CAP);
   }
 
   // 名前フィルタが無くタイプ／世代だけのときは、候補 id 群をそのままページングしてから素材を
   // 取得すれば足りる（全候補の species を引かずに済む）。名前フィルタがあるときは ja/en 名の
   // 判定に全候補の素材が要るため、先に素材を取得してから絞り込む。
   if (!hasNameFilter) {
-    const total = candidateIds.length;
-    const pageIds = candidateIds.slice(params.offset, params.offset + params.limit);
+    const total = candidates.length;
+    const pageIds = candidates.slice(params.offset, params.offset + params.limit).map((c) => c.id);
     const materials = await fetchMaterials(client, pageIds, options, concurrency);
     const results = materials.map(toListItem);
     return buildResponse(results, total, params);
   }
 
-  const materials = await fetchMaterials(client, candidateIds, options, concurrency);
+  const materials = await fetchMaterials(
+    client,
+    candidates.map((c) => c.id),
+    options,
+    concurrency,
+  );
   const matched = materials.filter((material) => matchesName(material, nameQuery));
   const total = matched.length;
   const page = matched.slice(params.offset, params.offset + params.limit);

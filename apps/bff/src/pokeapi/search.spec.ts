@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PokeApiClient } from './client.js';
-import { searchPokemon } from './search.js';
+import { resolveCandidates, searchPokemon } from './search.js';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -468,5 +468,62 @@ describe('searchPokemon', () => {
 
     expect(maxInFlight).toBeLessThanOrEqual(3);
     expect(maxInFlight).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveCandidates', () => {
+  it('attaches the english slug from the /pokemon list for a name-only search', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const candidates = await resolveCandidates(
+      client,
+      { name: 'x', limit: 20, offset: 0 },
+      undefined,
+    );
+
+    expect(candidates).toEqual(FIXTURES.map((f) => ({ id: f.id, slug: f.name })));
+  });
+
+  it('attaches the english slug from /type members for a type filter', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const candidates = await resolveCandidates(
+      client,
+      { types: ['grass', 'poison'], limit: 20, offset: 0 },
+      undefined,
+    );
+
+    // grass∩poison は bulbasaur(1)/oddish(43)。slug は type メンバーの pokemon.name から得る。
+    expect(candidates).toEqual([
+      { id: 1, slug: 'bulbasaur' },
+      { id: 43, slug: 'oddish' },
+    ]);
+  });
+
+  it('attaches the english slug from /generation pokemon_species for a generation filter', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const candidates = await resolveCandidates(
+      client,
+      { generation: 'generation-ii', limit: 20, offset: 0 },
+      undefined,
+    );
+
+    expect(candidates).toEqual([{ id: 152, slug: 'chikorita' }]);
+  });
+
+  it('attaches slugs for a type and generation intersection', async () => {
+    const client = makeClient(makeFetchImpl());
+
+    const candidates = await resolveCandidates(
+      client,
+      { types: ['grass'], generation: 'generation-i', limit: 20, offset: 0 },
+      undefined,
+    );
+
+    expect(candidates).toEqual([
+      { id: 1, slug: 'bulbasaur' },
+      { id: 43, slug: 'oddish' },
+    ]);
   });
 });
