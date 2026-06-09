@@ -15,9 +15,21 @@
   },
   "weighted_total": 99.4,
   "findings": [
-    {"severity": "low", "location": "apps/web/src/app/features/detail/pokemon-detail.ts:1346,1654", "note": "formatMultiplier がモジュール関数と protected メソッドの二重定義になっている。テンプレートからの参照のためのラッパだが、片方に寄せられる軽微な重複。"},
-    {"severity": "low", "location": "apps/bff/src/pokeapi/detail.ts:518,598", "note": "incomingFactors の構築が computeTypeMatchups 内とフェッチ補完ループ(598付近)で実質二重に行われている。攻撃タイプ名の収集ロジックを共有関数に切り出すと保守性が上がる。挙動上は問題なし。"},
-    {"severity": "low", "location": "apps/web/src/app/features/detail/pokemon-detail.ts:1672", "note": "playCry は audio.play() の Promise reject と 'error' イベントの両方で cryError を立てるが、play() 解決後にデバイス側 error が出るケースでは pause/解放の後始末がイベントリスナ経由のみに依存する。実害は低いが once リスナと stopCry の関係を明示しておくとよい。"}
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.ts:1346,1654",
+      "note": "formatMultiplier がモジュール関数と protected メソッドの二重定義になっている。テンプレートからの参照のためのラッパだが、片方に寄せられる軽微な重複。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/pokeapi/detail.ts:518,598",
+      "note": "incomingFactors の構築が computeTypeMatchups 内とフェッチ補完ループ(598付近)で実質二重に行われている。攻撃タイプ名の収集ロジックを共有関数に切り出すと保守性が上がる。挙動上は問題なし。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/web/src/app/features/detail/pokemon-detail.ts:1672",
+      "note": "playCry は audio.play() の Promise reject と 'error' イベントの両方で cryError を立てるが、play() 解決後にデバイス側 error が出るケースでは pause/解放の後始末がイベントリスナ経由のみに依存する。実害は低いが once リスナと stopCry の関係を明示しておくとよい。"
+    }
   ],
   "verdict": "全 Acceptance Criteria を満たす高品質な統合実装。倍率合成(単×2/×0.5/×0・複合×4/×0.25)、x1除外、immunity保持、past_damage_relations除外、flavor整形・英語フォールバック、cry latest→legacy→null、世代/分類/伝説幻バッジ、言語切替連動が正しく実装され、BFF・フロント Vitest と Playwright E2E がエッジ(欠落・複合・相殺・フォールバック・言語切替・再生失敗)を網羅。Angular21 standalone/signal/zoneless新制御フロー、inject/DestroyRef、strict/no-any、BFF境界とi18nも遵守。指摘は軽微な重複のみ。"
 }

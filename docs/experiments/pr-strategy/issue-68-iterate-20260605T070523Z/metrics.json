@@ -1,0 +1,24 @@
+{
+  "run_id": "issue-68-iterate-20260605T070523Z",
+  "issue": 68,
+  "approach": "iterate",
+  "started_at_self_reported": "2026-06-05T07:05:23Z",
+  "pr_opened_at": "2026-06-05T07:25:44Z",
+  "ready_at": "2026-06-05T07:36:40Z",
+  "elapsed_seconds": 656,
+  "elapsed_source": "pr_records",
+  "prs": [
+    {
+      "number": 69,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/69",
+      "opened_at": "2026-06-05T07:25:44Z",
+      "part": 1,
+      "review_rounds": 3,
+      "findings_deferred": 0
+    }
+  ],
+  "split_count": 1,
+  "review_rounds": 3,
+  "findings_deferred": 0,
+  "notes": "方針A（反復セルフレビュー）。issue #68（Postgres + 認証基盤 + お気に入り）を 1 本の PR #69 に実装。code-reviewer による反復レビュー: round1=CHANGES_REQUESTED(5件) → 修正、round2=CHANGES_REQUESTED(3件, 全 low) → 修正、round3=LGTM。findings_deferred は無し。elapsed は PR 記録由来（pr_opened_at 〜 ready コメント createdAt）。"
+}

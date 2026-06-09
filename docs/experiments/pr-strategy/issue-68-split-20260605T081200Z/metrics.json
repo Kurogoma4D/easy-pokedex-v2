@@ -1,0 +1,21 @@
+{
+  "run_id": "issue-68-split-20260605T081200Z",
+  "issue": 68,
+  "approach": "split",
+  "started_at_self_reported": "2026-06-05T08:12:00Z",
+  "pr_opened_at": "2026-06-05T08:17:36Z",
+  "ready_at": "2026-06-05T09:50:58Z",
+  "elapsed_seconds": 5602,
+  "elapsed_source": "pr_records",
+  "prs": [
+    { "number": 70, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/70", "opened_at": "2026-06-05T08:17:36Z", "ready_at": "2026-06-05T08:23:24Z", "part": 1, "review_rounds": 1, "verdict": "changes_requested", "findings": 4, "findings_deferred": 0 },
+    { "number": 71, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/71", "opened_at": "2026-06-05T08:31:47Z", "ready_at": "2026-06-05T08:33:29Z", "part": 2, "review_rounds": 1, "verdict": "lgtm", "findings": 0, "findings_deferred": 0 },
+    { "number": 72, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/72", "opened_at": "2026-06-05T08:38:06Z", "ready_at": "2026-06-05T08:39:49Z", "part": 3, "review_rounds": 1, "verdict": "lgtm", "findings": 0, "findings_deferred": 0 },
+    { "number": 73, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/73", "opened_at": "2026-06-05T08:47:27Z", "ready_at": "2026-06-05T08:53:27Z", "part": 4, "review_rounds": 1, "verdict": "changes_requested", "findings": 2, "findings_deferred": 0 },
+    { "number": 74, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/74", "opened_at": "2026-06-05T09:39:45Z", "ready_at": "2026-06-05T09:50:58Z", "part": 5, "review_rounds": 1, "verdict": "changes_requested", "findings": 3, "findings_deferred": 0 }
+  ],
+  "split_count": 5,
+  "review_rounds": 5,
+  "findings_deferred": 0,
+  "notes": "issue #68（Postgres+認証基盤+お気に入り）を 5 PR に分割（基盤→認証bff→お気に入りAPI→フロント認証→お気に入りフロント）。各 PR を独立 Subagent で実装、code-reviewer によるセルフレビューを 1 ターンのみ実施（再レビューなし）。PR#71/#72 は LGTM で修正不要、PR#70/#73/#74 は changes_requested を 1 ラウンドで修正。findings_deferred は全 PR 0（各ラウンドで全指摘を対応）。全 PR をオープンのまま残置。elapsed_seconds=5602 は最早 pr_opened_at(#70 08:17:36Z)〜最終 ready_at(#74 09:50:58Z)。"
+}
