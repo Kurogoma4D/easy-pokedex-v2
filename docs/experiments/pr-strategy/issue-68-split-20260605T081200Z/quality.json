@@ -1,0 +1,41 @@
+{
+  "run_id": "issue-68-split-20260605T081200Z",
+  "issue": 68,
+  "approach": "split",
+  "prs": [70, 71, 72, 73, 74],
+  "scored_by": "isolated-subagent",
+  "total_additions": 4449,
+  "total_deletions": 22,
+  "scores": {
+    "correctness": 5,
+    "design": 5,
+    "tests": 4,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 97.6,
+  "findings": [
+    {
+      "severity": "high",
+      "location": "(repository-wide)",
+      "note": "Acceptance Criteria に 'E2E behavior is verified and guaranteed' とあるが、Playwright/Cypress 等の E2E は皆無。grep でも e2e/playwright/cypress の参照なし。認証・お気に入りの結合検証は Hono の in-memory `app.request`(apps/bff/src/routes/auth.spec.ts, favorites.spec.ts) と Angular TestBed+HTTP モック(auth.service.spec.ts 他)のみで、実ブラウザ+実 Postgres を通る E2E ではない。AC の E2E 要件は未充足。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/auth/session.ts:18",
+      "note": "SESSION_SECRET は env で要求・検証(env.ts)されるが、セッション id は不透明乱数トークンのみで Cookie 署名/暗号化に未使用。設計上は妥当(推測不能性で代替)だが、'セッション秘密鍵' という要件名目に対し現状は将来拡張用の保持に留まる点を明示。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/db/migrate.ts:16",
+      "note": "マイグレーションは独自の splitSqlStatements でセミコロン分割し tx.unsafe で 1 文ずつ適用する自前実装。テストは充実しているが、ドル引用ネストや複雑な DO ブロック等のエッジで取りこぼす余地があり、確立済みマイグレーションツールに比べ脆い可能性。現状スキーマ(0001_init.sql)では問題ない。"
+    },
+    {
+      "severity": "low",
+      "location": "apps/bff/src/auth/pg-repository.ts:32",
+      "note": "BIGINT id を Number() 変換(2^53 未満前提)。コメントで前提を明記しており実害は低いが、長期運用での桁あふれ前提に依存している。"
+    }
+  ],
+  "verdict": "認証(scrypt ハッシュ・HttpOnly セッション Cookie・登録/ログイン/ログアウト/認証ミドルウェア・バリデーション・重複拒否・ユーザー列挙対策)、お気に入り(冪等な登録/解除・ユーザー分離・未認証 401・ゲスト非保存・楽観更新+ロールバック)、Postgres 永続化・docker-compose・マイグレーション・.env.example/README 手順まで、AC のほぼ全項目を高品質に実装。層分離(repository/service/route/UI)とテスト網羅(BFF 結合・フロント component/service)も優秀で、Angular 21 standalone/signal/zoneless/新制御フローや BFF 境界・ja/en i18n も遵守。唯一の重大な欠落は AC 明記の真の E2E 検証(実ブラウザ+実 DB を貫く Playwright 等)が一切無い点で、tests を満点から減点。"
+}

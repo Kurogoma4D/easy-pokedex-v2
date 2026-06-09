@@ -8,9 +8,30 @@
   "elapsed_seconds": 1288,
   "elapsed_source": "pr_records",
   "prs": [
-    { "number": 63, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/63", "opened_at": "2026-06-05T05:56:48Z", "part": 1, "review_rounds": 1, "findings_deferred": 0 },
-    { "number": 64, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/64", "opened_at": "2026-06-05T06:06:37Z", "part": 2, "review_rounds": 1, "findings_deferred": 2 },
-    { "number": 66, "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/66", "opened_at": "2026-06-05T06:16:29Z", "part": 3, "review_rounds": 1, "findings_deferred": 0 }
+    {
+      "number": 63,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/63",
+      "opened_at": "2026-06-05T05:56:48Z",
+      "part": 1,
+      "review_rounds": 1,
+      "findings_deferred": 0
+    },
+    {
+      "number": 64,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/64",
+      "opened_at": "2026-06-05T06:06:37Z",
+      "part": 2,
+      "review_rounds": 1,
+      "findings_deferred": 2
+    },
+    {
+      "number": 66,
+      "url": "https://github.com/Kurogoma4D/easy-pokedex-v2/pull/66",
+      "opened_at": "2026-06-05T06:16:29Z",
+      "part": 3,
+      "review_rounds": 1,
+      "findings_deferred": 0
+    }
   ],
   "split_count": 3,
   "review_rounds": 3,

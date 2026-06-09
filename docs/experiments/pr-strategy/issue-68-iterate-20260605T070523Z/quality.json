@@ -1,0 +1,26 @@
+{
+  "issue": 68,
+  "approach": "iterate",
+  "prs": [69],
+  "scored_by": "isolated-subagent",
+  "total_additions": 2455,
+  "total_deletions": 45,
+  "scores": {
+    "correctness": 4.5,
+    "design": 5,
+    "tests": 4,
+    "idioms": 5,
+    "boundary_i18n": 5,
+    "maintainability": 5
+  },
+  "weighted_total": 93.0,
+  "findings": [
+    {"severity": "medium", "location": "e2e/favorites.spec.ts:1; e2e/fixtures.ts:2823", "note": "E2E はブラウザ層で /api/auth/** と /api/favorites/** をスタブし、セッション・お気に入りをページ内可変状態で代用している。実際の Hono BFF・Postgres・セッション Cookie 経路を通っていないため、AC『E2E behavior is verified and guaranteed』に対しては認証・永続化のエンドツーエンドが保証されていない。最低限ひとつのフローを実 BFF + DB（または test-app）に対して走らせると AC を満たせる。"},
+    {"severity": "low", "location": "apps/bff/src/db/migrations.spec.ts:1", "note": "マイグレーションは fake Pool で適用順・冪等性・トランザクションのみ検証しており、実 Postgres に対する適用・接続は自動テストで担保されていない。AC『docker-compose で起動し bff がマイグレーション適用後に接続・起動できる』は手動確認頼みになっている。"},
+    {"severity": "low", "location": "apps/bff/src/routes/auth.ts:1097", "note": "Cookie 認証だが CSRF 対策は SameSite=Lax のみに依存。状態変更が PUT/DELETE のため Lax で概ね防げるが、明示的な対策（Origin チェック等）は無い。スコープ的に許容範囲だが要留意。"},
+    {"severity": "low", "location": "apps/web/src/app/features/favorites/favorites-detail-cache.service.ts:2105", "note": "お気に入り一覧は各 id の詳細を /pokemon/:id へ個別 N 回取得する（一括 API なし）。BFF 経由で境界は守られているが N+1。件数増で非効率。BFF 側の一括取得エンドポイント追加が望ましい。"},
+    {"severity": "low", "location": "apps/web/src/app/i18n/messages.ts:2582", "note": "en の 'favorites.count' が '{count}' のみでラベルが無く、ja の '{count}ひき' と非対称。表示として数値だけになり意図が薄い。i18n 違反ではないが整合性に欠ける。"},
+    {"severity": "low", "location": "apps/bff/src/routes/auth.ts:1141", "note": "/login のバリデーション失敗を 400 ではなく 401 にマッピングしている。フィールド情報の漏洩回避という意図は妥当だが、不正入力(400)と認証失敗(401)の区別が API 上で失われる。"}
+  ],
+  "verdict": "受け入れ基準をほぼ全て満たす完成度の高い実装。Postgres+トランザクション付き冪等マイグレーション、bcrypt ハッシュ化、HttpOnly セッション Cookie とログアウト時のセッション無効化、ユーザー単位のお気に入り CRUD と専用一覧、未ログイン誘導（ゲスト保存なし）、保護 API の 401 拒否、.env.example と README 手順が揃う。設計はリポジトリ抽象＋サービス層＋DI でインメモリ実装によるテスト容易性が高く、Angular 21 の standalone/signal/zoneless/新制御フロー/inject、Hono、strict TS（any 無し）と idiom も良好。BFF 境界・ja/en i18n も遵守。主な減点は E2E が実 BFF/Postgres ではなくブラウザ層スタブで完結しており、AC の『E2E で保証』に対し認証・永続化の真の経路が検証されていない点と、実 DB 接続の自動検証欠如。weighted_total=93.0。"
+}
