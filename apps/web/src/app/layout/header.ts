@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../features/auth/auth.service';
 import { Locale } from '../i18n/locale';
 import { LocaleService } from '../i18n/locale.service';
 import { MessageKey } from '../i18n/messages';
@@ -24,6 +25,23 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       <nav class="app-header__nav">
         <a routerLink="/list" routerLinkActive="is-active">{{ messages()['nav.list'] }}</a>
       </nav>
+      @if (!initializing()) {
+        <div class="app-header__auth">
+          @if (user(); as currentUser) {
+            <span class="app-header__user" title="{{ currentUser.email }}">{{
+              currentUser.email
+            }}</span>
+            <button type="button" class="app-header__auth-action" (click)="logout()">
+              {{ messages()['nav.logout'] }}
+            </button>
+          } @else {
+            <a routerLink="/login" routerLinkActive="is-active">{{ messages()['nav.login'] }}</a>
+            <a routerLink="/register" routerLinkActive="is-active">{{
+              messages()['nav.register']
+            }}</a>
+          }
+        </div>
+      }
       <div
         class="app-header__locale"
         role="group"
@@ -73,6 +91,36 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
       color: var(--color-text-on-shell);
       text-decoration: none;
     }
+    .app-header__auth {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-family: var(--font-display);
+      font-size: var(--font-size-display-sm);
+    }
+    .app-header__auth a {
+      color: var(--color-text-on-shell);
+      text-decoration: none;
+    }
+    .app-header__user {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-body);
+      font-size: var(--font-size-body-sm);
+      color: var(--color-text-on-shell);
+    }
+    .app-header__auth-action {
+      font-family: inherit;
+      font-size: inherit;
+      color: var(--color-text-on-shell);
+      background: transparent;
+      border: 2px solid var(--color-text-on-shell);
+      border-radius: var(--radius-chip);
+      padding: var(--space-1) var(--space-2);
+      cursor: pointer;
+    }
     .app-header__locale {
       display: flex;
       align-items: center;
@@ -99,9 +147,12 @@ const LOCALE_LABEL_KEYS: Readonly<Record<Locale, MessageKey>> = {
 })
 export class Header {
   private readonly localeService = inject(LocaleService);
+  private readonly authService = inject(AuthService);
 
   protected readonly messages = this.localeService.messages;
   protected readonly currentLocale = this.localeService.locale;
+  protected readonly user = this.authService.user;
+  protected readonly initializing = this.authService.initializing;
   protected readonly localeOptions = this.localeService.availableLocales.map((locale) => ({
     locale,
     labelKey: LOCALE_LABEL_KEYS[locale],
@@ -109,5 +160,9 @@ export class Header {
 
   protected selectLocale(locale: Locale): void {
     this.localeService.setLocale(locale);
+  }
+
+  protected logout(): void {
+    void this.authService.logout();
   }
 }
